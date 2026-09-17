@@ -13,7 +13,7 @@ Este backend se construye de forma incremental, en ramas por funcionalidad:
 
 - [x] `feature/backend-bootstrap` — estructura del proyecto, modelo de datos, migración inicial de Alembic, autenticación JWT (registro, login, refresh, recuperación de contraseña) con tests
 - [x] `feature/profile-applications-events` — perfil de usuario, CRUD de candidaturas (con filtros y paginación) y eventos/timeline, con tests
-- [ ] Matching de ofertas (cliente Adzuna + scoring por keywords)
+- [x] `feature/matching` — cliente Adzuna, scoring nivel 1 (keywords), endpoints de matches (buscar/listar/convertir/descartar), con tests simulados
 - [ ] Estadísticas del dashboard
 - [ ] Docker Compose y despliegue
 
