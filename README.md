@@ -72,30 +72,49 @@ Levanta PostgreSQL y el backend (aplicando migraciones automáticamente al arran
 
 ## Despliegue en Render
 
+El servicio web se despliega en Render; la base de datos vive en
+[Neon](https://neon.tech) (Postgres serverless, capa gratuita sin la
+caducidad a los 90 días que tiene la de Render).
+
+### 1. Base de datos en Neon
+
+1. Crea una cuenta/proyecto en [neon.tech](https://neon.tech) (tiene capa gratuita).
+2. En el dashboard del proyecto, copia la **cadena de conexión "directa"**
+   (no la que pone "pooled"/"pgbouncer" — con un único servicio de Render
+   corriendo de forma continua no hace falta el pooler, y evita problemas
+   de PgBouncer en modo transacción con SQLAlchemy). Tiene esta forma:
+
+   ```text
+   postgresql://usuario:contraseña@ep-xxxx.eu-central-1.aws.neon.tech/postulare?sslmode=require
+   ```
+
+   El `?sslmode=require` es obligatorio — Neon no acepta conexiones sin TLS.
+3. Guarda esa cadena: es el `DATABASE_URL` del paso 3.
+
+### 2. Servicio web en Render
+
 [`render.yaml`](render.yaml) es un [Blueprint de Render](https://render.com/docs/blueprint-spec):
-describe el servicio web (a partir del `Dockerfile`) y la base de datos
-PostgreSQL. Para desplegar:
+describe el servicio web a partir del `Dockerfile`.
 
 1. Sube este repositorio a GitHub (si no lo está ya).
 2. En el dashboard de Render: **New +** → **Blueprint**, y selecciona el repo.
-3. Render crea la base de datos y el servicio, y pide los valores marcados
-   como "a rellenar" en `render.yaml` — como mínimo:
+3. Render pide los valores marcados como "a rellenar" en `render.yaml`:
+   - `DATABASE_URL`: la cadena de conexión de Neon del paso anterior
    - `CORS_ORIGINS` y `FRONTEND_URL`: la URL real del frontend en Vercel
      (sin barra final), p. ej. `https://postulare.vercel.app`
    - `ADZUNA_APP_ID` / `ADZUNA_APP_KEY`: para que "Buscar ofertas" funcione
      (sin ellos, ese endpoint devuelve error 502; el resto de la app va sin problema)
-4. `SECRET_KEY` se genera sola; `DATABASE_URL` se conecta sola a la base de
-   datos creada por el Blueprint. El resto de variables (SMTP, etc.) son
+4. `SECRET_KEY` se genera sola. El resto de variables (SMTP, etc.) son
    opcionales — ver [`.env.example`](.env.example).
 5. Cada despliegue aplica las migraciones pendientes automáticamente
    (`docker-entrypoint.sh` corre `alembic upgrade head` antes de arrancar
-   uvicorn).
+   uvicorn) directamente contra Neon.
 
 El health check de Render usa `GET /health`.
 
 Railway es la alternativa mencionada en el README raíz: no necesita
-`render.yaml` (detecta el `Dockerfile` solo), pero las mismas variables de
-entorno de arriba aplican igual.
+`render.yaml` (detecta el `Dockerfile` solo), pero el mismo `DATABASE_URL`
+de Neon y las mismas variables de entorno de arriba aplican igual.
 
 ## Tests
 
