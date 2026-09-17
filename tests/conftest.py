@@ -46,3 +46,16 @@ def client(db_session):
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+def register_and_login(client: TestClient, email: str = "ana@example.com", password: str = "supersecret123") -> dict:
+    """Registra un usuario, hace login y devuelve los headers de Authorization listos para usar."""
+    client.post("/auth/register", json={"email": email, "password": password, "full_name": "Ana"})
+    login = client.post("/auth/login", json={"email": email, "password": password})
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def auth_headers(client) -> dict:
+    return register_and_login(client)

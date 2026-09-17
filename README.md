@@ -12,7 +12,7 @@ Stack: **Python 3.12 · FastAPI · SQLAlchemy 2.0 · Alembic · PostgreSQL · JW
 Este backend se construye de forma incremental, en ramas por funcionalidad:
 
 - [x] `feature/backend-bootstrap` — estructura del proyecto, modelo de datos, migración inicial de Alembic, autenticación JWT (registro, login, refresh, recuperación de contraseña) con tests
-- [ ] Perfil de usuario + CRUD de candidaturas y eventos
+- [x] `feature/profile-applications-events` — perfil de usuario, CRUD de candidaturas (con filtros y paginación) y eventos/timeline, con tests
 - [ ] Matching de ofertas (cliente Adzuna + scoring por keywords)
 - [ ] Estadísticas del dashboard
 - [ ] Docker Compose y despliegue
