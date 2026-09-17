@@ -1,0 +1,6 @@
+# Los scripts que se ejecutan dentro del contenedor Linux necesitan salto
+# de línea LF pase lo que pase con core.autocrlf en la máquina de quien
+# los edite (en Windows, un CRLF cuela un "#!/bin/sh\r" que revienta el
+# arranque del contenedor con un error críptico).
+*.sh text eol=lf
+Dockerfile text eol=lf

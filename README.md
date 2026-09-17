@@ -70,6 +70,33 @@ docker compose up --build
 
 Levanta PostgreSQL y el backend (aplicando migraciones automáticamente al arrancar).
 
+## Despliegue en Render
+
+[`render.yaml`](render.yaml) es un [Blueprint de Render](https://render.com/docs/blueprint-spec):
+describe el servicio web (a partir del `Dockerfile`) y la base de datos
+PostgreSQL. Para desplegar:
+
+1. Sube este repositorio a GitHub (si no lo está ya).
+2. En el dashboard de Render: **New +** → **Blueprint**, y selecciona el repo.
+3. Render crea la base de datos y el servicio, y pide los valores marcados
+   como "a rellenar" en `render.yaml` — como mínimo:
+   - `CORS_ORIGINS` y `FRONTEND_URL`: la URL real del frontend en Vercel
+     (sin barra final), p. ej. `https://postulare.vercel.app`
+   - `ADZUNA_APP_ID` / `ADZUNA_APP_KEY`: para que "Buscar ofertas" funcione
+     (sin ellos, ese endpoint devuelve error 502; el resto de la app va sin problema)
+4. `SECRET_KEY` se genera sola; `DATABASE_URL` se conecta sola a la base de
+   datos creada por el Blueprint. El resto de variables (SMTP, etc.) son
+   opcionales — ver [`.env.example`](.env.example).
+5. Cada despliegue aplica las migraciones pendientes automáticamente
+   (`docker-entrypoint.sh` corre `alembic upgrade head` antes de arrancar
+   uvicorn).
+
+El health check de Render usa `GET /health`.
+
+Railway es la alternativa mencionada en el README raíz: no necesita
+`render.yaml` (detecta el `Dockerfile` solo), pero las mismas variables de
+entorno de arriba aplican igual.
+
 ## Tests
 
 ```bash
