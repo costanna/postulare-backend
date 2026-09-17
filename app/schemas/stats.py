@@ -23,5 +23,5 @@ class TimelinePoint(BaseModel):
 
 
 class SourceCount(BaseModel):
-    source: str
+    source: str | None  # None = candidatura sin origen indicado
     count: int

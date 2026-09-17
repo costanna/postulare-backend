@@ -59,7 +59,7 @@ def test_by_source_groups_and_orders_by_count(client, auth_headers):
     body = response.json()
     assert body[0] == {"source": "LinkedIn", "count": 2}
     sources = {item["source"] for item in body}
-    assert "Desconocido" in sources
+    assert None in sources  # la candidatura sin source se agrupa bajo None
 
 
 def test_stats_are_isolated_between_users(client, auth_headers):

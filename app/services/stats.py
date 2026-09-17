@@ -54,8 +54,11 @@ def get_timeline(db: Session, user_id: uuid.UUID) -> list[dict]:
 
 def get_by_source(db: Session, user_id: uuid.UUID) -> list[dict]:
     applications = _user_applications(db, user_id)
-    counts = Counter((a.source or "Desconocido") for a in applications)
+    # source=None se deja tal cual (en vez de una etiqueta fija tipo
+    # "Desconocido"): el texto es cosa del frontend, que lo traduce según
+    # el idioma activo.
+    counts = Counter(a.source for a in applications)
     return [
         {"source": source, "count": count}
-        for source, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        for source, count in sorted(counts.items(), key=lambda item: (-item[1], item[0] or ""))
     ]
