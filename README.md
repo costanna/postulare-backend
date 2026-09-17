@@ -15,7 +15,7 @@ Este backend se construye de forma incremental, en ramas por funcionalidad:
 - [x] `feature/profile-applications-events` — perfil de usuario, CRUD de candidaturas (con filtros y paginación) y eventos/timeline, con tests
 - [x] `feature/matching` — cliente Adzuna, scoring nivel 1 (keywords), endpoints de matches (buscar/listar/convertir/descartar), con tests simulados
 - [x] `feature/stats` — estadísticas del dashboard (resumen, por estado, evolución mensual, por origen), con tests
-- [x] Docker Compose (backend + PostgreSQL) — pendiente ajustar al desplegar el frontend
+- [x] Docker Compose (backend + PostgreSQL); el frontend ya tiene su propio `Dockerfile` y ambos se orquestan juntos desde el [`docker-compose.yml`](../docker-compose.yml) de la carpeta raíz
 
 **Backend funcionalmente completo de extremo a extremo (MVP del prompt maestro, pasos 1-5).** El scoring con IA (Claude, nivel 2) queda pendiente como mejora posterior, tal como se planificó.
 
