@@ -29,8 +29,27 @@ class Settings(BaseSettings):
     ADZUNA_APP_KEY: str = ""
     ADZUNA_COUNTRY: str = "es"
 
-    # Scoring con IA (fase 2, opcional)
+    # IA (opcional): cartas de presentación con Claude. Sin clave, o al agotar los
+    # topes, se usa una plantilla sin IA (gratis) - la función nunca deja de responder.
     ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-opus-5"
+    # Topes de gasto: llamadas reales a la IA por día, todos los usuarios juntos y por usuario.
+    LLM_DAILY_LIMIT: int = 20
+    COVER_LETTER_DAILY_LIMIT_PER_USER: int = 5
+
+    # Cuentas demo temporales ("Prueba la demo")
+    DEMO_ENABLED: bool = True
+    DEMO_TTL_HOURS: int = 24
+    DEMO_ACCOUNTS_DAILY_LIMIT: int = 200
+    DEMO_LIMIT_PER_HOUR: int = 5
+
+    # Recordatorios: días sin novedades tras aplicar a partir de los cuales toca hacer seguimiento
+    FOLLOW_UP_DAYS: int = 7
+
+    # Importar CV (PDF): solo se lee en memoria, nunca se guarda
+    CV_MAX_BYTES: int = 2_000_000
+    CV_MAX_PAGES: int = 6
+    CV_IMPORT_LIMIT_PER_HOUR: int = 15
 
     # Rate limiting
     MATCH_SEARCH_COOLDOWN_MINUTES: int = 10

@@ -45,3 +45,11 @@ class ApplicationRead(BaseModel):
     applied_at: date | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class FollowUpRead(BaseModel):
+    """Candidatura que lleva días sin novedades y conviene reactivar."""
+
+    application: ApplicationRead
+    days_waiting: int
+    last_activity: date

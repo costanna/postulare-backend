@@ -62,6 +62,21 @@ services:
         value: "10"
       - key: LOGIN_LIMIT_PER_MINUTE
         value: "20"
+      # Cartas de presentación con IA (opcional). Sin ANTHROPIC_API_KEY se usa una
+      # plantilla gratuita. Cada carta con IA cuesta dinero: estos topes acotan el gasto.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-opus-5
+      - key: LLM_DAILY_LIMIT
+        value: "20"
+      - key: COVER_LETTER_DAILY_LIMIT_PER_USER
+        value: "5"
+      # Cuentas demo temporales ("Prueba la demo")
+      - key: DEMO_ENABLED
+        value: "true"
+      - key: DEMO_TTL_HOURS
+        value: "24"
       # Vacíos = en desarrollo el enlace de recuperación se imprime en los
       # logs en vez de enviarse (ver app/services/email.py). Rellena estos
       # cuatro si quieres que los emails salgan de verdad.
