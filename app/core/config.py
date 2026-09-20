@@ -34,6 +34,17 @@ class Settings(BaseSettings):
 
     # Rate limiting
     MATCH_SEARCH_COOLDOWN_MINUTES: int = 10
+    # Tope GLOBAL de llamadas reales a Adzuna por día (todos los usuarios
+    # juntos): red de seguridad para que una demo pública no agote la cuota
+    # gratuita. 0 = sin límite. Las respuestas servidas desde la caché no cuentan.
+    ADZUNA_DAILY_LIMIT: int = 50
+    # Minutos que se reutiliza una búsqueda idéntica sin volver a llamar a Adzuna. 0 = sin caché.
+    ADZUNA_CACHE_MINUTES: int = 360
+    # Límites por IP en endpoints públicos (registro, login, recuperar contraseña).
+    RATE_LIMIT_ENABLED: bool = True
+    REGISTER_LIMIT_PER_HOUR: int = 10
+    LOGIN_LIMIT_PER_MINUTE: int = 20
+    FORGOT_PASSWORD_LIMIT_PER_HOUR: int = 5
 
     # Email
     SMTP_HOST: str = ""

@@ -1,12 +1,15 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
 from app.deps import get_current_user
+from app.models.adzuna_usage import AdzunaUsage
 from app.models.application import Application
 from app.models.enums import ApplicationStatus, MatchStatus
 from app.models.job_offer import JobOffer
@@ -14,20 +17,107 @@ from app.models.match import Match
 from app.models.user import User
 from app.schemas.application import ApplicationRead
 from app.schemas.match import MatchRead, MatchSearchResult
+from app.schemas.search_filters import SearchFilters, SearchFiltersRead
 from app.services.job_search import JobSearchError, build_search_query, search_job_offers
 from app.services.scoring import score_job_offer
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
 
-def _build_search_query(user: User) -> str:
-    query = build_search_query(user.desired_position, user.skills)
-    if not query:
+def _load_filters(user: User) -> SearchFilters:
+    try:
+        return SearchFilters(**(user.search_filters or {}))
+    except ValidationError:
+        # JSON guardado que ya no valida (p. ej. cambió el esquema): vuelve al automático.
+        return SearchFilters()
+
+
+def _effective_query(user: User, filters: SearchFilters) -> str:
+    return filters.keywords or build_search_query(user.desired_position, user.skills)
+
+
+def _effective_location(user: User, filters: SearchFilters) -> str | None:
+    return filters.location or user.location
+
+
+def _today() -> date:
+    return datetime.now(timezone.utc).date()
+
+
+def _daily_remaining(db: Session) -> int | None:
+    limit = settings.ADZUNA_DAILY_LIMIT
+    if limit <= 0:
+        return None
+    used = db.query(AdzunaUsage.calls).filter(AdzunaUsage.day == _today()).scalar() or 0
+    return max(0, limit - used)
+
+
+def _consume_daily_quota(db: Session) -> None:
+    """Cuenta una llamada REAL a Adzuna contra el tope diario global.
+
+    Se ejecuta solo cuando no hay respuesta en caché. Si el tope ya está
+    alcanzado aborta la búsqueda con 503 (no 429: no es culpa de este
+    usuario, es la cuota compartida de la demo).
+    """
+    limit = settings.ADZUNA_DAILY_LIMIT
+    if limit <= 0:
+        return
+
+    today = _today()
+
+    def _row() -> AdzunaUsage | None:
+        return db.query(AdzunaUsage).filter(AdzunaUsage.day == today).with_for_update().first()
+
+    row = _row()
+    if row is None:
+        db.add(AdzunaUsage(day=today, calls=0))
+        try:
+            db.flush()
+        except IntegrityError:  # otra petición creó la fila a la vez
+            db.rollback()
+        row = _row()
+
+    if row.calls >= limit:
+        tomorrow = datetime.combine(today + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+        retry_after = max(1, int((tomorrow - datetime.now(timezone.utc)).total_seconds()))
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Completa tu perfil (puesto deseado o skills) antes de buscar ofertas",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Se ha alcanzado el límite diario de búsquedas de esta demo. Vuelve mañana.",
+            headers={"Retry-After": str(retry_after)},
         )
-    return query
+
+    row.calls += 1
+    db.commit()
+
+
+def _filters_read(user: User, filters: SearchFilters, db: Session) -> SearchFiltersRead:
+    return SearchFiltersRead(
+        filters=filters,
+        effective_query=_effective_query(user, filters),
+        effective_location=_effective_location(user, filters),
+        daily_remaining=_daily_remaining(db),
+    )
+
+
+@router.get("/filters", response_model=SearchFiltersRead)
+def get_search_filters(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SearchFiltersRead:
+    return _filters_read(current_user, _load_filters(current_user), db)
+
+
+@router.put("/filters", response_model=SearchFiltersRead)
+def save_search_filters(
+    payload: SearchFilters,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SearchFiltersRead:
+    current_user.search_filters = payload.model_dump()
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return _filters_read(current_user, payload, db)
 
 
 def _check_rate_limit(user: User) -> None:
@@ -52,10 +142,26 @@ def search_matches(
     db: Session = Depends(get_db),
 ) -> MatchSearchResult:
     _check_rate_limit(current_user)
-    query = _build_search_query(current_user)
+
+    filters = _load_filters(current_user)
+    query = _effective_query(current_user, filters)
+    if not query:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Completa tu perfil (puesto deseado o skills) antes de buscar ofertas",
+        )
 
     try:
-        offers = search_job_offers(query=query, location=current_user.location, seniority=current_user.seniority)
+        offers = search_job_offers(
+            query=query,
+            location=_effective_location(current_user, filters),
+            seniority=current_user.seniority,
+            radius_km=filters.radius_km,
+            exclude=filters.exclude,
+            exclude_other_levels=filters.exclude_other_levels,
+            max_days_old=filters.max_days_old,
+            before_request=lambda: _consume_daily_quota(db),
+        )
     except JobSearchError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 

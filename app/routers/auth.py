@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limit_forgot_password, limit_login, limit_register
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -28,7 +29,12 @@ from app.services.email import send_password_reset_email
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_register)],
+)
 def register(payload: UserRegister, db: Session = Depends(get_db)) -> User:
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
@@ -45,7 +51,7 @@ def register(payload: UserRegister, db: Session = Depends(get_db)) -> User:
     return user
 
 
-@router.post("/login", response_model=TokenPair)
+@router.post("/login", response_model=TokenPair, dependencies=[Depends(limit_login)])
 def login(payload: UserLogin, db: Session = Depends(get_db)) -> TokenPair:
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.hashed_password):
@@ -78,7 +84,7 @@ def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
-@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(limit_forgot_password)])
 def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> dict:
     user = db.query(User).filter(User.email == payload.email).first()
     # Respuesta genérica siempre, exista o no el email, para no filtrar qué

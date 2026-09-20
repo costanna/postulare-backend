@@ -29,6 +29,10 @@ class User(Base):
         nullable=False,
     )
 
+    # Filtros de "Buscar ofertas" editables por el usuario (JSON validado por
+    # schemas.search_filters.SearchFilters). NULL = todo automático a partir del perfil.
+    search_filters: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     last_match_search_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
