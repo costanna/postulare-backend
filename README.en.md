@@ -19,7 +19,7 @@ Job hunting is noisy: dozens of applications in spreadsheets, repeated job posti
 | | |
 |---|---|
 | **Applications** | Kanban board and filterable table. Every status change (saved → applied → interview → offer…) leaves a trace in a timeline. |
-| **Recommended offers** | Searches [Adzuna](https://developer.adzuna.com/) (and [InfoJobs](https://developer.infojobs.net/), if enabled) using your position and skills, drops offers for another seniority level and repeated ones (and, if you want, filters by companies that mention disability), and scores each from 0 to 100. |
+| **Recommended offers** | Searches [Adzuna](https://developer.adzuna.com/) (and [InfoJobs](https://developer.infojobs.net/), if enabled) using your position and skills, drops offers for another seniority level and repeated ones (and, if you want, filters by companies that mention disability or by work mode: remote, hybrid or on-site), and scores each from 0 to 100. |
 | **Cover letters** | Per offer, written by AI (Claude) when enabled, or from a free template in Catalan, Spanish and English. |
 | **CV import** | Upload your CV as a PDF and your profile is filled in (position, location, level, skills, summary). The PDF is never stored. |
 | **Follow-ups** | Flags applications that have had no news for days. |
@@ -99,7 +99,7 @@ The full, commented list is in [`.env.example`](.env.example). Never commit a re
 pytest
 ```
 
-242 tests on in-memory SQLite: they touch neither PostgreSQL, nor Alembic, nor the real APIs (Adzuna and Anthropic are simulated).
+275 tests on in-memory SQLite: they touch neither PostgreSQL, nor Alembic, nor the real APIs (Adzuna and Anthropic are simulated).
 
 ## Deployment: Neon + Render
 
