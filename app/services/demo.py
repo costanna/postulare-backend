@@ -108,7 +108,10 @@ def _get_or_create_offers(db: Session) -> list[JobOffer]:
     offers: list[JobOffer] = []
     for index, (title, company, location, salary, description) in enumerate(_OFFERS, start=1):
         external_id = f"demo-{index}"
+        url = f"https://example.com/demo/{index}"
         offer = db.query(JobOffer).filter(JobOffer.source == DEMO_SOURCE, JobOffer.external_id == external_id).first()
+        if offer is not None and offer.url is None:
+            offer.url = url
         if offer is None:
             offer = JobOffer(
                 source=DEMO_SOURCE,
@@ -118,6 +121,7 @@ def _get_or_create_offers(db: Session) -> list[JobOffer]:
                 location=location,
                 salary_range=salary,
                 description=description,
+                url=url,
             )
             db.add(offer)
             db.flush()
