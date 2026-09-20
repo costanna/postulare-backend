@@ -14,19 +14,14 @@ from app.models.match import Match
 from app.models.user import User
 from app.schemas.application import ApplicationRead
 from app.schemas.match import MatchRead, MatchSearchResult
-from app.services.job_search import JobSearchError, search_job_offers
+from app.services.job_search import JobSearchError, build_search_query, search_job_offers
 from app.services.scoring import score_job_offer
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
 
 def _build_search_query(user: User) -> str:
-    parts: list[str] = []
-    if user.desired_position:
-        parts.append(user.desired_position)
-    if user.skills:
-        parts.extend(user.skills[:5])
-    query = " ".join(parts).strip()
+    query = build_search_query(user.desired_position, user.skills)
     if not query:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -60,7 +55,7 @@ def search_matches(
     query = _build_search_query(current_user)
 
     try:
-        offers = search_job_offers(query=query, location=current_user.location)
+        offers = search_job_offers(query=query, location=current_user.location, seniority=current_user.seniority)
     except JobSearchError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 

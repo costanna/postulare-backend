@@ -112,3 +112,76 @@ def test_search_wraps_http_errors(adzuna_configured, monkeypatch):
 
     with pytest.raises(JobSearchError):
         search_job_offers("python")
+
+
+# --- Consulta construida a partir del perfil ---------------------------------
+
+from app.models.enums import Seniority  # noqa: E402
+from app.services.job_search import build_search_query  # noqa: E402
+
+
+def test_query_normalizes_feminine_role_to_the_form_offers_use():
+    assert build_search_query("Desarrolladora Full Stack Junior", []) == "Desarrollador Full Stack Junior"
+    assert build_search_query("Programadora Python", []) == "Programador Python"
+
+
+def test_query_skips_generic_skills_and_keeps_user_order():
+    skills = ["Git", "Python", "Jira", "Angular", "Scrum", "Java", "Spring Boot", "React", "TypeScript"]
+
+    query = build_search_query("Full Stack Junior", skills)
+
+    # Git/Jira/Scrum fuera; máximo 5 skills útiles (Python, Angular, Java, Spring Boot, React)
+    assert query == "Full Stack Junior Python Angular Java Spring Boot React"
+
+
+def test_query_dedupes_case_insensitively():
+    assert build_search_query("Python Developer", ["python", "Angular"]) == "Python Developer Angular"
+
+
+def test_query_is_empty_without_position_or_useful_skills():
+    assert build_search_query(None, None) == ""
+    assert build_search_query("", ["Git", "Scrum"]) == ""
+
+
+def _capture_params(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        job_search.httpx, "get", lambda url, params, timeout: captured.update(params=params) or _FakeResponse({"results": []})
+    )
+    return captured
+
+
+def test_search_excludes_senior_words_for_a_junior_profile(adzuna_configured, monkeypatch):
+    captured = _capture_params(monkeypatch)
+
+    search_job_offers("python", seniority=Seniority.junior)
+
+    exclude = captured["params"]["what_exclude"].split()
+    assert "senior" in exclude and "lead" in exclude
+    assert "junior" not in exclude
+
+
+def test_search_excludes_junior_words_for_a_senior_profile(adzuna_configured, monkeypatch):
+    captured = _capture_params(monkeypatch)
+
+    search_job_offers("python", seniority=Seniority.senior)
+
+    assert "junior" in captured["params"]["what_exclude"].split()
+
+
+def test_search_does_not_exclude_anything_without_seniority(adzuna_configured, monkeypatch):
+    captured = _capture_params(monkeypatch)
+
+    search_job_offers("python")
+
+    assert "what_exclude" not in captured["params"]
+
+
+def test_search_widens_radius_when_there_is_a_location(adzuna_configured, monkeypatch):
+    captured = _capture_params(monkeypatch)
+
+    search_job_offers("python", location="Barcelona")
+    assert captured["params"]["distance"] == job_search.SEARCH_RADIUS_KM
+
+    search_job_offers("python")
+    assert "distance" not in captured["params"]
