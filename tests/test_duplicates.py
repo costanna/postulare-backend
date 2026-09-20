@@ -106,7 +106,7 @@ def test_offer_already_in_applications_is_skipped(client, auth_headers, monkeypa
     client.post(
         "/applications",
         headers=auth_headers,
-        json={"company_name": "Otra", "position": "Otro", "job_url": "https://www.example.com/jobs/2/?utm=x"},
+        json={"company_name": "Otra", "position": "Otro", "job_url": "https://www.example.com/jobs/2/?utm_source=x"},
     )
 
     result = _search(client, auth_headers, monkeypatch, [_offer("1"), _offer("2", title="Distinto", company="Nueva"), _offer("3", title="Libre", company="Libre SL")])
@@ -142,3 +142,32 @@ def test_already_tracked_flag_appears_after_converting_or_adding_manually(client
 def test_offer_key_compares_only_the_city_because_each_source_writes_locations_differently():
     assert offer_key("A", "Dev", "Barcelona") == offer_key("A", "Dev", "Barcelona, Barcelona")
     assert offer_key("A", "Dev", "Sabadell, Barcelona") != offer_key("A", "Dev", "Barcelona")
+
+
+def test_offers_whose_id_lives_in_the_query_string_are_not_all_the_same_offer():
+    assert normalize_url("https://www.infojobs.net/oferta?id=111") != normalize_url("https://www.infojobs.net/oferta?id=222")
+    index = TrackedIndex([("Acme", "Dev", "https://www.infojobs.net/oferta?id=111&utm_source=x")])
+    assert index.contains("Otra", "Otro", "https://www.infojobs.net/oferta?id=111&fbclid=abc")
+    assert not index.contains("Otra", "Otro", "https://www.infojobs.net/oferta?id=222")
+
+
+def test_tracking_parameters_are_ignored_but_the_rest_are_kept_in_any_order():
+    a = normalize_url("https://www.adzuna.es/land/ad/5?se=AbC&utm_medium=api&v=1")
+    assert a == "adzuna.es/land/ad/5"
+    assert normalize_url("https://x.com/j?b=2&a=1&utm_campaign=z") == normalize_url("https://X.com/j/?a=1&b=2#top")
+
+
+def test_adzuna_offers_are_not_flagged_because_you_tracked_another_one_from_the_same_site(
+    client, auth_headers, monkeypatch
+):
+    client.post(
+        "/applications",
+        headers=auth_headers,
+        json={"company_name": "Acme", "position": "Dev", "job_url": "https://www.adzuna.es/land/ad/5012345678?se=A&v=1"},
+    )
+    other = _offer("1", title="Otro puesto", company="Otra", url="https://www.adzuna.es/land/ad/5012345999?se=B&v=2")
+    _set_profile(client, auth_headers)
+
+    _search(client, auth_headers, monkeypatch, [other])
+
+    assert [m["already_tracked"] for m in client.get("/matches", headers=auth_headers).json()] == [False]
