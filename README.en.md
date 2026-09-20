@@ -99,7 +99,7 @@ The full, commented list is in [`.env.example`](.env.example). Never commit a re
 pytest
 ```
 
-237 tests on in-memory SQLite: they touch neither PostgreSQL, nor Alembic, nor the real APIs (Adzuna and Anthropic are simulated).
+240 tests on in-memory SQLite: they touch neither PostgreSQL, nor Alembic, nor the real APIs (Adzuna and Anthropic are simulated).
 
 ## Deployment: Neon + Render
 
