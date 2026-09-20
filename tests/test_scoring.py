@@ -47,3 +47,47 @@ def test_score_without_profile_data_does_not_crash():
     score, reasoning = score_job_offer(profile, offer)
     assert score == 0
     assert isinstance(reasoning, str)
+
+
+def test_java_does_not_match_javascript_and_sql_does_not_match_postgresql():
+    # Regresión: con `skill in texto`, "java" casaba con cualquier oferta de
+    # JavaScript. Un CV con Java Y JavaScript lo sufre de lleno.
+    profile = _make_profile(skills=["Java", "SQL"])
+    offer = {"title": "Frontend", "description": "JavaScript, TypeScript y PostgreSQL", "location": ""}
+
+    score, reasoning = score_job_offer(profile, offer)
+
+    assert score == 0
+    assert "0/2 skills" in reasoning
+
+
+def test_skills_with_symbols_match_as_whole_words():
+    profile = _make_profile(skills=["C++", "C#", "Node.js"])
+    offer = {"title": "Dev", "description": "Buscamos C++, C# y Node.js (no Java).", "location": ""}
+
+    _, reasoning = score_job_offer(profile, offer)
+
+    assert "3/3 skills" in reasoning
+
+
+def test_long_cv_skill_list_is_not_penalised_for_the_skills_it_does_not_use():
+    # Un CV real lista 25-30 skills; una oferta que menciona 5 de ellas es un
+    # buen encaje y no debe puntuar como si casara 5 de 30 (~12/70).
+    many = [f"skill{i}" for i in range(25)] + ["Python", "Angular", "Docker", "PostgreSQL", "Java"]
+    profile = _make_profile(skills=many)
+    offer = {"title": "Dev", "description": "Python, Angular, Docker, PostgreSQL y Java", "location": ""}
+
+    score, reasoning = score_job_offer(profile, offer)
+
+    assert score >= 70  # bloque de skills completo
+    assert "5 de tus skills coinciden" in reasoning
+    assert "/30" not in reasoning
+
+
+def test_few_skills_keep_the_ratio_format():
+    profile = _make_profile(skills=["Angular", "Python", "FastAPI"])
+    offer = {"title": "Dev", "description": "Angular", "location": ""}
+
+    _, reasoning = score_job_offer(profile, offer)
+
+    assert "1/3 skills" in reasoning
