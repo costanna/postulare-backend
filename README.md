@@ -17,7 +17,16 @@ Este backend se construye de forma incremental, en ramas por funcionalidad:
 - [x] `feature/stats` — estadísticas del dashboard (resumen, por estado, evolución mensual, por origen), con tests
 - [x] Docker Compose (backend + PostgreSQL); el frontend ya tiene su propio `Dockerfile` y ambos se orquestan juntos desde el [`docker-compose.yml`](../docker-compose.yml) de la carpeta raíz
 
-**Backend funcionalmente completo de extremo a extremo (MVP del prompt maestro, pasos 1-5).** El scoring con IA (Claude, nivel 2) queda pendiente como mejora posterior, tal como se planificó.
+**Backend funcionalmente completo de extremo a extremo (MVP del prompt maestro, pasos 1-5)**, más un paquete de mejoras:
+
+- **Cartas de presentación por oferta** (`POST /matches/{id}/cover-letter`): con IA (Claude) si hay clave y quedan cartas del día; si no, con una plantilla gratuita en es/ca/en. Siempre devuelve una carta.
+- **Importar CV en PDF** (`POST /profile/import-cv`): propone puesto, ubicación, nivel, skills y resumen. El PDF se lee en memoria y se descarta; el usuario revisa la propuesta antes de guardarla.
+- **Seguimientos** (`GET /applications/follow-ups`): candidaturas abiertas sin novedades desde hace `FOLLOW_UP_DAYS` días.
+- **Exportar a CSV** (`GET /applications/export`).
+- **Ofertas repetidas**: la búsqueda descarta reanuncios y ofertas que ya están en tus candidaturas; los matches indican `already_tracked`.
+- **Prueba la demo** (`POST /auth/demo`): cuenta temporal con datos de ejemplo, sin registro (ver más abajo).
+
+El scoring razonado con IA (nivel 2) sigue pendiente; hoy el scoring es por palabras clave.
 
 ## Puesta en marcha local
 
@@ -139,6 +148,38 @@ que no se puede rodear:
 Ajusta el tope a la cuota real de tu plan de Adzuna. En Render, las variables
 de un servicio ya creado no se actualizan solas desde `render.yaml`: cámbialas
 en el dashboard (si no, se usan los valores por defecto de arriba).
+
+## Cartas con IA: control del gasto
+
+A diferencia de Adzuna, **cada carta generada con Claude cuesta dinero** (con
+`claude-opus-5`, del orden de céntimos por carta; `claude-haiku-4-5` sale bastante
+más barato; comprueba el precio vigente en la consola de Anthropic). Es opcional y se controla así:
+
+- **Sin `ANTHROPIC_API_KEY` no se gasta nada**: la carta sale de una plantilla
+  gratuita con los mismos datos del perfil y de la oferta.
+- **Tope diario global** (`LLM_DAILY_LIMIT`, 20) y **por usuario**
+  (`COVER_LETTER_DAILY_LIMIT_PER_USER`, 5), contados en la tabla `llm_usage`. Al
+  agotarse, sigue saliendo la plantilla (nunca un error). Con los valores por
+  defecto el gasto máximo diario son 20 cartas, una cifra conocida de antemano
+  (unos pocos dólares como mucho, aunque alguien intente abusar).
+- Si la API de IA falla, se devuelve la plantilla y **se devuelve la reserva** de
+  los topes (no se cobra un intento fallido al usuario).
+- Las cuentas demo **nunca** llaman a la IA.
+- La descripción de la oferta es texto de un tercero: va delimitada y el prompt
+  ordena no seguir instrucciones que contenga; al modelo solo se le pasan datos
+  reales del perfil y se le prohíbe inventar experiencia.
+- Una carta ya generada se guarda en el match y no se vuelve a pedir salvo que el
+  usuario pulse "regenerar".
+
+## Cuentas demo ("Prueba la demo")
+
+`POST /auth/demo` crea al momento un usuario con datos de ejemplo ficticios (sin
+pedir email ni contraseña) para que cualquiera pueda probar la app. No cuesta
+nada ni se puede abusar: no puede buscar ofertas reales (403, no gasta Adzuna),
+sus cartas usan siempre plantilla, caduca a las `DEMO_TTL_HOURS` horas (la sesión
+deja de valer y las cuentas caducadas se borran, con sus datos, al crear la
+siguiente demo), y hay un límite por IP (`DEMO_LIMIT_PER_HOUR`) y un tope global
+de demos al día (`DEMO_ACCOUNTS_DAILY_LIMIT`).
 
 ## Tests
 

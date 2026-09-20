@@ -59,3 +59,11 @@ def limit_login(request: Request) -> None:
 
 def limit_forgot_password(request: Request) -> None:
     _check("forgot", client_ip(request), settings.FORGOT_PASSWORD_LIMIT_PER_HOUR, 3600)
+
+
+def limit_demo(request: Request) -> None:
+    _check("demo", client_ip(request), settings.DEMO_LIMIT_PER_HOUR, 3600)
+
+
+def limit_cv_import(request: Request) -> None:
+    _check("cv-import", client_ip(request), settings.CV_IMPORT_LIMIT_PER_HOUR, 3600)

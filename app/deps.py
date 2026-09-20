@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.security import decode_token
 from app.db.session import get_db
 from app.models.user import User
+from app.services.demo import is_demo_expired
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -28,6 +29,6 @@ def get_current_user(
         raise credentials_exception from exc
 
     user = db.get(User, user_id)
-    if user is None:
+    if user is None or is_demo_expired(user):
         raise credentials_exception
     return user

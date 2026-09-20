@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from app.core.rate_limit import limit_forgot_password, limit_login, limit_register
+from app.core.config import settings
+from app.core.rate_limit import limit_demo, limit_forgot_password, limit_login, limit_register
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -16,6 +17,7 @@ from app.deps import get_current_user
 from app.models.user import User
 from app.schemas.auth import (
     AccessTokenOnly,
+    DemoRequest,
     ForgotPasswordRequest,
     RefreshRequest,
     ResetPasswordRequest,
@@ -24,6 +26,7 @@ from app.schemas.auth import (
     UserRegister,
 )
 from app.schemas.user import UserRead
+from app.services.demo import DemoLimitReached, create_demo_user, is_demo_expired
 from app.services.email import send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -63,6 +66,27 @@ def login(payload: UserLogin, db: Session = Depends(get_db)) -> TokenPair:
     )
 
 
+@router.post("/demo", response_model=TokenPair, dependencies=[Depends(limit_demo)])
+def start_demo(payload: DemoRequest | None = None, db: Session = Depends(get_db)) -> TokenPair:
+    """Crea una cuenta temporal con datos de ejemplo y devuelve sus tokens (sin registro)."""
+    if not settings.DEMO_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La demo no está disponible")
+
+    language = (payload or DemoRequest()).language
+    try:
+        user = create_demo_user(db, language)
+    except DemoLimitReached as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Se han creado demasiadas cuentas demo hoy. Inténtalo mañana o crea una cuenta.",
+        ) from exc
+
+    return TokenPair(
+        access_token=create_access_token(str(user.id)),
+        refresh_token=create_refresh_token(str(user.id)),
+    )
+
+
 @router.post("/refresh", response_model=AccessTokenOnly)
 def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> AccessTokenOnly:
     try:
@@ -73,7 +97,7 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> AccessTok
         ) from exc
 
     user = db.get(User, user_id)
-    if user is None:
+    if user is None or is_demo_expired(user):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
 
     return AccessTokenOnly(access_token=create_access_token(str(user.id)))

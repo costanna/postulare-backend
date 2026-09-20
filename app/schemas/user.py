@@ -18,6 +18,8 @@ class UserRead(BaseModel):
     seniority: Seniority | None = None
     min_salary: int | None = None
     preferred_language: PreferredLanguage
+    about: str | None = None
+    is_demo: bool = False
     created_at: datetime
 
 
@@ -31,3 +33,15 @@ class ProfileUpdate(BaseModel):
     seniority: Seniority | None = None
     min_salary: int | None = Field(default=None, ge=0)
     preferred_language: PreferredLanguage | None = None
+    about: str | None = Field(default=None, max_length=2000)
+
+
+class CvImportResult(BaseModel):
+    """Propuesta extraída de un CV: no se guarda nada hasta que el usuario la confirma."""
+
+    full_name: str | None = None
+    desired_position: str | None = None
+    location: str | None = None
+    seniority: Seniority | None = None
+    skills: list[str] = Field(default_factory=list)
+    about: str | None = None

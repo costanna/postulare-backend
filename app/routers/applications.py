@@ -1,18 +1,24 @@
+import csv
+import io
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from math import ceil
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.deps import get_current_user
 from app.models.application import Application
 from app.models.enums import ApplicationStatus
 from app.models.user import User
-from app.schemas.application import ApplicationCreate, ApplicationRead, ApplicationUpdate
+from app.schemas.application import ApplicationCreate, ApplicationRead, ApplicationUpdate, FollowUpRead
 from app.schemas.common import Page
+
+# Marca de orden de bytes UTF-8: sin ella Excel abre el CSV con las tildes rotas
+_BOM = chr(0xFEFF)
 
 router = APIRouter(prefix="/applications", tags=["applications"])
 
@@ -79,6 +85,89 @@ def create_application(
     db.commit()
     db.refresh(application)
     return application
+
+
+@router.get("/follow-ups", response_model=list[FollowUpRead])
+def list_follow_ups(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[FollowUpRead]:
+    """Candidaturas abiertas (aplicada / en entrevistas) sin novedades desde hace FOLLOW_UP_DAYS
+    o más. Cualquier evento (incluido un "seguimiento") reinicia la cuenta."""
+    applications = (
+        db.query(Application)
+        .options(selectinload(Application.events))
+        .filter(
+            Application.user_id == current_user.id,
+            Application.status.in_([ApplicationStatus.applied, ApplicationStatus.interview]),
+        )
+        .all()
+    )
+
+    today = datetime.now(timezone.utc).date()
+    due: list[FollowUpRead] = []
+    for application in applications:
+        activity = [event.event_date.date() for event in application.events]
+        activity.append(application.applied_at or application.created_at.date())
+        last_activity = max(activity)
+        days_waiting = (today - last_activity).days
+        if days_waiting >= settings.FOLLOW_UP_DAYS:
+            due.append(
+                FollowUpRead(
+                    application=ApplicationRead.model_validate(application),
+                    days_waiting=days_waiting,
+                    last_activity=last_activity,
+                )
+            )
+
+    due.sort(key=lambda item: item.days_waiting, reverse=True)
+    return due[:50]
+
+
+def _csv_safe(value: object) -> str:
+    """Neutraliza la inyección de fórmulas: Excel/Sheets ejecutan celdas que empiezan por = + - @."""
+    text = "" if value is None else str(value)
+    return f"'{text}" if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+@router.get("/export")
+def export_applications(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Todas las candidaturas del usuario en CSV (UTF-8 con BOM para que Excel respete las tildes)."""
+    applications = (
+        db.query(Application)
+        .filter(Application.user_id == current_user.id)
+        .order_by(Application.created_at.desc())
+        .all()
+    )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        ["company", "position", "status", "applied_at", "source", "salary_range", "job_url", "notes", "created_at"]
+    )
+    for application in applications:
+        writer.writerow(
+            [
+                _csv_safe(application.company_name),
+                _csv_safe(application.position),
+                application.status.value,
+                application.applied_at.isoformat() if application.applied_at else "",
+                _csv_safe(application.source),
+                _csv_safe(application.salary_range),
+                _csv_safe(application.job_url),
+                _csv_safe(application.notes),
+                application.created_at.date().isoformat() if application.created_at else "",
+            ]
+        )
+
+    return Response(
+        content=_BOM + buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="postulare-candidaturas.csv"'},
+    )
 
 
 @router.get("/{application_id}", response_model=ApplicationRead)

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Enum, Integer, String, func
+from sqlalchemy import JSON, Boolean, DateTime, Enum, Integer, String, Text, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -28,6 +28,13 @@ class User(Base):
         default=PreferredLanguage.es,
         nullable=False,
     )
+
+    # Resumen profesional libre: alimenta las cartas de presentación (y se puede
+    # rellenar importando el CV). Nunca se guarda el PDF, solo este texto.
+    about: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Cuenta temporal de "Prueba la demo": datos de ejemplo, sin búsqueda real ni IA,
+    # y se borra sola pasadas DEMO_TTL_HOURS.
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     # Filtros de "Buscar ofertas" editables por el usuario (JSON validado por
     # schemas.search_filters.SearchFilters). NULL = todo automático a partir del perfil.
