@@ -137,3 +137,8 @@ def test_already_tracked_flag_appears_after_converting_or_adding_manually(client
     flags = {m["id"]: m["already_tracked"] for m in client.get("/matches", headers=auth_headers).json()}
     assert flags[target["id"]] is True
     assert list(flags.values()).count(True) == 1
+
+
+def test_offer_key_compares_only_the_city_because_each_source_writes_locations_differently():
+    assert offer_key("A", "Dev", "Barcelona") == offer_key("A", "Dev", "Barcelona, Barcelona")
+    assert offer_key("A", "Dev", "Sabadell, Barcelona") != offer_key("A", "Dev", "Barcelona")

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.models.llm_usage import LlmUsage
 
 GLOBAL_SCOPE = "global"
+INFOJOBS_SCOPE = "infojobs"
 
 
 def user_scope(user_id: object) -> str:

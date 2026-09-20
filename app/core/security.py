@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
@@ -20,7 +21,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def _create_token(subject: str, token_type: TokenType, expires_delta: timedelta) -> str:
+def _create_token(
+    subject: str, token_type: TokenType, expires_delta: timedelta, extra_claims: dict[str, Any] | None = None
+) -> str:
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "sub": subject,
@@ -28,6 +31,7 @@ def _create_token(subject: str, token_type: TokenType, expires_delta: timedelta)
         "iat": now,
         "exp": now + expires_delta,
         "jti": secrets.token_hex(16),
+        **(extra_claims or {}),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -40,8 +44,23 @@ def create_refresh_token(user_id: str) -> str:
     return _create_token(user_id, "refresh", timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
 
 
-def create_reset_token(user_id: str) -> str:
-    return _create_token(user_id, "reset", timedelta(minutes=settings.RESET_PASSWORD_TOKEN_EXPIRE_MINUTES))
+def password_fingerprint(hashed_password: str) -> str:
+    return hashlib.sha256(hashed_password.encode()).hexdigest()[:16]
+
+
+def create_reset_token(user_id: str, hashed_password: str) -> str:
+    """El token lleva una huella de la contraseña actual: al cambiarla deja de valer (un solo uso)."""
+    return _create_token(
+        user_id,
+        "reset",
+        timedelta(minutes=settings.RESET_PASSWORD_TOKEN_EXPIRE_MINUTES),
+        {"pwd": password_fingerprint(hashed_password)},
+    )
+
+
+def reset_token_matches(token: str, hashed_password: str) -> bool:
+    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    return secrets.compare_digest(str(payload.get("pwd", "")), password_fingerprint(hashed_password))
 
 
 def decode_token(token: str, expected_type: TokenType) -> str:

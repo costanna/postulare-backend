@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     ADZUNA_APP_KEY: str = ""
     ADZUNA_COUNTRY: str = "es"
 
+    INFOJOBS_CLIENT_ID: str = ""
+    INFOJOBS_CLIENT_SECRET: str = ""
+    INFOJOBS_DAILY_LIMIT: int = 50
+
     # IA (opcional): cartas de presentación con Claude. Sin clave, o al agotar los
     # topes, se usa una plantilla sin IA (gratis) - la función nunca deja de responder.
     ANTHROPIC_API_KEY: str = ""

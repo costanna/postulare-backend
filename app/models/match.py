@@ -28,6 +28,7 @@ class Match(Base):
     # Carta de presentación generada para esta oferta ("ai" = Claude, "template" = plantilla sin IA)
     cover_letter: Mapped[str | None] = mapped_column(Text, nullable=True)
     cover_letter_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    cover_letter_language: Mapped[str | None] = mapped_column(String(2), nullable=True)
     cover_letter_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

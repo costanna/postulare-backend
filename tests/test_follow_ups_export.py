@@ -28,7 +28,6 @@ def _follow_ups(client, headers) -> list[dict]:
     return response.json()
 
 
-
 def test_follow_ups_lists_only_stale_open_applications_oldest_first(client, auth_headers):
     _create(client, auth_headers, "Reciente", days_ago=2)
     _create(client, auth_headers, "Antigua", days_ago=20)
@@ -84,7 +83,6 @@ def test_follow_ups_are_private_and_require_auth(client, auth_headers):
 def test_follow_ups_route_is_not_swallowed_by_application_id(client, auth_headers):
     response = client.get("/applications/follow-ups", headers=auth_headers)
     assert response.status_code == 200 and response.json() == []
-
 
 
 def _export(client, headers) -> tuple[str, str]:
