@@ -6,8 +6,6 @@ from sqlalchemy.types import CHAR, TypeDecorator
 
 
 class GUID(TypeDecorator):
-    """Columna UUID: usa el tipo nativo UUID en PostgreSQL y CHAR(36) en otros motores (SQLite)."""
-
     impl = CHAR
     cache_ok = True
 

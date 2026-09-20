@@ -1,4 +1,3 @@
-"""Dependencias comunes de FastAPI: sesión de BD y usuario autenticado a partir del JWT."""
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError

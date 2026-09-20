@@ -118,7 +118,7 @@ def _full_name(lines: list[str]) -> str | None:
 
 def _position(lines: list[str]) -> str | None:
     for line in lines[1:7]:
-        if "@" in line or line.count("|") >= 2:  # línea de contacto
+        if "@" in line or line.count("|") >= 2:
             continue
         if _ROLE_WORDS.search(line):
             first_part = _SEPARATORS.split(line)[0].strip(" -–—·•|")
@@ -168,7 +168,7 @@ def _about(lines: list[str]) -> str | None:
 
 def _skills_found(text: str) -> list[str]:
     lowered = text.lower()
-    found: list[tuple[int, int, int, str]] = []  # (grupo, -apariciones, primera posición, nombre)
+    found: list[tuple[int, int, int, str]] = []
     for canonical, aliases, group in _SKILLS:
         count, first = 0, len(lowered)
         for alias in aliases:

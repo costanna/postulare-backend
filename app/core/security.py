@@ -1,4 +1,3 @@
-"""Hashing de contraseñas y creación/verificación de JWT (access + refresh)."""
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
@@ -46,7 +45,6 @@ def create_reset_token(user_id: str) -> str:
 
 
 def decode_token(token: str, expected_type: TokenType) -> str:
-    """Decodifica un JWT y devuelve el subject (user id). Lanza JWTError si es inválido."""
     payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     if payload.get("type") != expected_type:
         raise JWTError(f"Token type mismatch: expected {expected_type}")

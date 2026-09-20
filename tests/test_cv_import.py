@@ -14,7 +14,6 @@ def test_parser_extracts_profile_from_pdf():
     assert proposal.location == "Girona"
     assert proposal.seniority == "junior"
     assert proposal.about is not None and proposal.about.startswith("Desarrolladora junior con proyectos")
-    # Las skills salen con su mayúscula canónica y sin duplicados
     for skill in ("Python", "FastAPI", "Angular", "TypeScript", "PostgreSQL", "Docker", "JavaScript"):
         assert skill in proposal.skills
     assert len(proposal.skills) == len(set(proposal.skills))

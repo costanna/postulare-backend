@@ -28,8 +28,6 @@ def _follow_ups(client, headers) -> list[dict]:
     return response.json()
 
 
-# --- Seguimientos ------------------------------------------------------------------
-
 
 def test_follow_ups_lists_only_stale_open_applications_oldest_first(client, auth_headers):
     _create(client, auth_headers, "Reciente", days_ago=2)
@@ -72,7 +70,7 @@ def test_an_old_event_does_not_hide_the_reminder(client, auth_headers):
 
 
 def test_application_without_applied_date_counts_from_creation(client, auth_headers):
-    _create(client, auth_headers, "Sin fecha")  # recién creada: no toca todavía
+    _create(client, auth_headers, "Sin fecha")
     assert _follow_ups(client, auth_headers) == []
 
 
@@ -87,8 +85,6 @@ def test_follow_ups_route_is_not_swallowed_by_application_id(client, auth_header
     response = client.get("/applications/follow-ups", headers=auth_headers)
     assert response.status_code == 200 and response.json() == []
 
-
-# --- CSV -----------------------------------------------------------------------------
 
 
 def _export(client, headers) -> tuple[str, str]:
@@ -105,7 +101,7 @@ def test_export_returns_all_own_applications_as_csv(client, auth_headers):
 
     text, content_type = _export(client, auth_headers)
     assert content_type.startswith("text/csv")
-    assert text.startswith(chr(0xFEFF))  # BOM: Excel respeta las tildes
+    assert text.startswith(chr(0xFEFF))
 
     rows = list(csv.DictReader(io.StringIO(text.lstrip(chr(0xFEFF)))))
     assert {r["company"] for r in rows} == {"Nubelia, S.L.", "Ñandú Tech"}

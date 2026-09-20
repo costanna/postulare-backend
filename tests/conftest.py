@@ -65,7 +65,6 @@ def client(db_session):
 
 
 def register_and_login(client: TestClient, email: str = "ana@example.com", password: str = "supersecret123") -> dict:
-    """Registra un usuario, hace login y devuelve los headers de Authorization listos para usar."""
     client.post("/auth/register", json={"email": email, "password": password, "full_name": "Ana"})
     login = client.post("/auth/login", json={"email": email, "password": password})
     token = login.json()["access_token"]

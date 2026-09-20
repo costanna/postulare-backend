@@ -37,7 +37,6 @@ def test_demo_creates_account_with_sample_data(client):
     matches = client.get("/matches", headers=_headers(tokens)).json()
     assert len(matches) == 5
     assert all(m["job_offer"]["source"] == "demo" for m in matches)
-    # Una oferta coincide con una candidatura para enseñar el aviso "ya la tienes"
     assert sum(m["already_tracked"] for m in matches) == 1
 
 
@@ -63,7 +62,7 @@ def test_demo_cannot_search_real_offers(client, monkeypatch):
     monkeypatch.setattr(matches_router, "search_job_offers", lambda *a, **k: called.append(1) or [])
     response = client.post("/matches/search", headers=_headers(_start_demo(client).json()))
     assert response.status_code == 403
-    assert called == []  # ni siquiera se acerca a Adzuna
+    assert called == []
 
 
 def test_demo_letters_use_template_and_never_call_the_ai(client, monkeypatch):
@@ -117,7 +116,7 @@ def test_expired_demo_accounts_are_purged_with_their_data(client, db_session):
     _age_demo_users(db_session, settings.DEMO_TTL_HOURS + 1)
     assert db_session.query(User).filter(User.is_demo.is_(True)).count() == 1
 
-    _start_demo(client)  # crear una demo limpia las caducadas
+    _start_demo(client)
 
     assert db_session.query(User).filter(User.is_demo.is_(True)).count() == 1
     assert db_session.query(Application).count() == 7

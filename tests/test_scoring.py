@@ -79,7 +79,7 @@ def test_long_cv_skill_list_is_not_penalised_for_the_skills_it_does_not_use():
 
     score, reasoning = score_job_offer(profile, offer)
 
-    assert score >= 70  # bloque de skills completo
+    assert score >= 70
     assert "5 de tus skills coinciden" in reasoning
     assert "/30" not in reasoning
 

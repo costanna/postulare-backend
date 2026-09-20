@@ -19,8 +19,6 @@ def _set_profile(client, headers):
     client.patch("/profile", headers=headers, json=PROFILE)
 
 
-# --- Filtros ---------------------------------------------------------------
-
 
 def test_get_filters_defaults_show_the_automatic_query(client, auth_headers):
     _set_profile(client, auth_headers)
@@ -44,7 +42,7 @@ def test_put_filters_persists_and_overrides_query_and_location(client, auth_head
         json={"keywords": "  angular   react ", "location": "Girona", "radius_km": 50, "min_score": 40},
     ).json()
 
-    assert saved["effective_query"] == "angular react"  # espacios colapsados
+    assert saved["effective_query"] == "angular react"
     assert saved["effective_location"] == "Girona"
     again = client.get("/matches/filters", headers=auth_headers).json()
     assert again["filters"]["radius_km"] == 50
@@ -111,8 +109,6 @@ def test_search_with_custom_keywords_works_even_with_an_empty_profile(client, au
     assert client.post("/matches/search", headers=auth_headers).status_code == 200
 
 
-# --- Tope diario global y caché ----------------------------------------------
-
 
 class _Resp:
     status_code = 200
@@ -149,7 +145,7 @@ def test_daily_limit_blocks_real_calls_with_503_and_retry_after(client, auth_hea
 
     assert blocked.status_code == 503
     assert int(blocked.headers["Retry-After"]) > 0
-    assert len(calls) == 2  # la tercera NO llegó a Adzuna
+    assert len(calls) == 2
 
 
 def test_daily_limit_is_shared_across_users(client, auth_headers, monkeypatch):
@@ -193,8 +189,6 @@ def test_no_limit_reports_none(client, auth_headers, monkeypatch):
     assert client.get("/matches/filters", headers=auth_headers).json()["daily_remaining"] is None
 
 
-# --- Límite por IP en endpoints públicos ---------------------------------------
-
 
 def _register(client, n, ip=None):
     headers = {"X-Forwarded-For": ip} if ip else {}
@@ -215,7 +209,6 @@ def test_register_is_rate_limited_per_ip(client, monkeypatch):
 
     assert blocked.status_code == 429
     assert int(blocked.headers["Retry-After"]) > 0
-    # Otra IP no se ve afectada
     assert _register(client, 4, "2.2.2.2").status_code == 201
 
 

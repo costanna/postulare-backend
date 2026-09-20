@@ -203,7 +203,7 @@ def search_matches(
 
     for offer_data in offers:
         key = offer_key(offer_data.get("company_name"), offer_data.get("title"), offer_data.get("location"))
-        if key in seen_keys:  # la misma oferta repetida en esta misma búsqueda
+        if key in seen_keys:
             skipped_duplicates += 1
             continue
         seen_keys.add(key)
@@ -326,7 +326,6 @@ def dismiss_match(
 
 
 def _ai_state(db: Session, user: User) -> tuple[bool, int | None]:
-    """(¿se puede usar la IA ahora?, cartas con IA que le quedan hoy)."""
     if user.is_demo or not settings.ANTHROPIC_API_KEY:
         return False, None
     remaining = [

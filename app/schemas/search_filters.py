@@ -11,7 +11,6 @@ class SearchFilters(BaseModel):
     # Sustituye a la consulta automática (puesto + skills). Basta con que
     # aparezca ALGUNA de las palabras en la oferta.
     keywords: str | None = Field(default=None, max_length=200)
-    # Sustituye a la ubicación del perfil solo para buscar.
     location: str | None = Field(default=None, max_length=100)
     radius_km: int = Field(default=30, ge=1, le=200)
     # Palabras que descartan una oferta (p. ej. "php sap comercial"). Separadas por espacios o comas.
@@ -27,7 +26,7 @@ class SearchFilters(BaseModel):
     @classmethod
     def _blank_to_none(cls, value: object) -> object:
         if isinstance(value, str):
-            value = " ".join(value.split())  # colapsa espacios/saltos de línea
+            value = " ".join(value.split())
             return value or None
         return value
 

@@ -32,7 +32,6 @@ class MatchSearchResult(BaseModel):
 
 
 class CoverLetterRequest(BaseModel):
-    # Idioma de la carta; por defecto el idioma preferido del perfil
     language: PreferredLanguage | None = None
     # Sin esto, si ya hay una carta guardada se devuelve tal cual (sin gastar IA)
     regenerate: bool = False

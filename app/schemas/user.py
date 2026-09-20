@@ -24,8 +24,6 @@ class UserRead(BaseModel):
 
 
 class ProfileUpdate(BaseModel):
-    """Todos los campos son opcionales: PATCH parcial del perfil."""
-
     full_name: str | None = None
     skills: list[str] | None = None
     location: str | None = None
@@ -44,8 +42,6 @@ class ProfileUpdate(BaseModel):
 
 
 class CvImportResult(BaseModel):
-    """Propuesta extraída de un CV: no se guarda nada hasta que el usuario la confirma."""
-
     full_name: str | None = None
     desired_position: str | None = None
     location: str | None = None

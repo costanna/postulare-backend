@@ -18,8 +18,6 @@ class ApplicationCreate(BaseModel):
 
 
 class ApplicationUpdate(BaseModel):
-    """PATCH parcial: solo se actualizan los campos enviados."""
-
     company_name: str | None = Field(default=None, min_length=1, max_length=255)
     position: str | None = Field(default=None, min_length=1, max_length=255)
     status: ApplicationStatus | None = None
@@ -55,8 +53,6 @@ class ApplicationRead(BaseModel):
 
 
 class FollowUpRead(BaseModel):
-    """Candidatura que lleva días sin novedades y conviene reactivar."""
-
     application: ApplicationRead
     days_waiting: int
     last_activity: date

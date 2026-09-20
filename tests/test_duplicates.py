@@ -73,7 +73,7 @@ def test_repost_with_new_id_is_skipped_in_later_search(client, db_session, auth_
     _search(client, auth_headers, monkeypatch, [_offer("1")])
     _fresh_cooldown(db_session)
 
-    result = _search(client, auth_headers, monkeypatch, [_offer("99")])  # mismo contenido, otro id
+    result = _search(client, auth_headers, monkeypatch, [_offer("99")])
     assert result["new_matches"] == 0 and result["skipped_duplicates"] == 1
     assert len(client.get("/matches", headers=auth_headers).json()) == 1
 
@@ -94,7 +94,7 @@ def test_same_offer_again_is_refreshed_not_counted_as_duplicate(client, db_sessi
     _search(client, auth_headers, monkeypatch, [_offer("1")])
     _fresh_cooldown(db_session)
 
-    result = _search(client, auth_headers, monkeypatch, [_offer("1")])  # mismo id: es la misma oferta
+    result = _search(client, auth_headers, monkeypatch, [_offer("1")])
     assert result["new_matches"] == 0
     assert result["updated_matches"] == 1
     assert result["skipped_duplicates"] == 0

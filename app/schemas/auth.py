@@ -48,6 +48,4 @@ class ResetPasswordRequest(BaseModel):
 
 
 class DemoRequest(BaseModel):
-    """Idioma de los datos de ejemplo de la cuenta demo."""
-
     language: PreferredLanguage = PreferredLanguage.es

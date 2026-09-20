@@ -29,7 +29,7 @@ def test_patch_profile_updates_only_sent_fields(client, auth_headers):
     assert body["location"] == "Barcelona"
     assert body["seniority"] == "junior"
     assert body["preferred_language"] == "ca"
-    assert body["full_name"] == "Ana"  # no tocado, se mantiene
+    assert body["full_name"] == "Ana"
 
 
 def test_patch_profile_rejects_negative_salary(client, auth_headers):

@@ -21,7 +21,7 @@ def test_summary_computes_response_rate(client, auth_headers):
     response = client.get("/stats/summary", headers=auth_headers)
     body = response.json()
     assert body["total_applications"] == 4
-    assert body["total_applied"] == 3  # todas menos "saved"
+    assert body["total_applied"] == 3
     assert body["total_interviews"] == 1
     assert body["total_rejected"] == 1
     # respondidas (interview+offer+rejected) = 2 de 3 aplicadas -> 66.7%
@@ -53,13 +53,13 @@ def test_by_source_groups_and_orders_by_count(client, auth_headers):
     _create_application(client, auth_headers, company_name="A", source="LinkedIn")
     _create_application(client, auth_headers, company_name="B", source="LinkedIn")
     _create_application(client, auth_headers, company_name="C", source="Referido")
-    _create_application(client, auth_headers, company_name="D")  # sin source
+    _create_application(client, auth_headers, company_name="D")
 
     response = client.get("/stats/by-source", headers=auth_headers)
     body = response.json()
     assert body[0] == {"source": "LinkedIn", "count": 2}
     sources = {item["source"] for item in body}
-    assert None in sources  # la candidatura sin source se agrupa bajo None
+    assert None in sources
 
 
 def test_stats_are_isolated_between_users(client, auth_headers):

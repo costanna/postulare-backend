@@ -8,7 +8,6 @@ import app.core.rate_limit as rate_limit
 import app.routers.matches as matches_router
 from app.core.security import hash_password
 from app.models.user import User
-from tests.conftest import register_and_login
 from tests.test_matches import FAKE_OFFERS, _set_profile
 
 
@@ -110,8 +109,6 @@ def test_converting_twice_is_rejected_and_creates_no_duplicate(client, auth_head
     assert client.get("/applications", headers=auth_headers).json()["total"] == 1
 
 
-# --- Nulos explícitos: antes devolvían 500 ---------------------------------------
-
 
 @pytest.mark.parametrize("field", ["company_name", "position", "status"])
 def test_application_update_rejects_null_required_fields(client, auth_headers, field):
@@ -131,8 +128,6 @@ def test_optional_fields_can_still_be_cleared_with_null(client, auth_headers):
     assert updated["notes"] is None and updated["salary_range"] == "1"
     assert client.patch("/profile", headers=auth_headers, json={"location": None}).status_code == 200
 
-
-# --- Emails sin distinguir mayúsculas -----------------------------------------------
 
 
 def test_email_is_stored_lowercase_and_login_ignores_case(client):
@@ -167,8 +162,6 @@ def test_rate_limiter_forgets_old_clients(monkeypatch):
     rate_limit._check("login", "10.0.9.9", 5, 60)
     assert len(rate_limit._hits) == 1
 
-
-# --- Recuperar contraseña ------------------------------------------------------------
 
 
 def test_reset_email_links_to_a_route_that_exists_in_the_frontend(monkeypatch):

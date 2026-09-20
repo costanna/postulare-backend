@@ -21,7 +21,6 @@ ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs"
 # (L'Hospitalet, Sant Cugat, Badalona...): con 30 km hay el doble de ofertas.
 SEARCH_RADIUS_KM = 30
 
-# Cuántas skills entran en la consulta. Con más, la consulta se diluye.
 MAX_QUERY_SKILLS = 5
 
 # Skills que no distinguen un puesto de otro (herramientas transversales,
@@ -49,12 +48,6 @@ class JobSearchError(Exception):
 
 
 def build_search_query(desired_position: str | None, skills: list[str] | None) -> str:
-    """Construye la consulta de búsqueda a partir del perfil.
-
-    Puesto deseado + las primeras skills que distinguen (en el orden en que
-    el usuario las puso: las primeras son las que cuentan). Devuelve una
-    cadena vacía si el perfil no da nada con lo que buscar.
-    """
     terms: list[str] = []
 
     if desired_position:
