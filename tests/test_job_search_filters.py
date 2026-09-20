@@ -53,7 +53,7 @@ def test_search_merges_user_exclusions_with_the_seniority_ones(adzuna_configured
     search_job_offers("python", seniority=Seniority.junior, exclude="PHP, sap")
 
     words = captured["params"]["what_exclude"].split()
-    assert {"senior", "php", "sap"} <= set(words)  # en minúsculas y sin comas
+    assert {"senior", "php", "sap"} <= set(words)
     assert len(words) == len(set(words))
 
 
@@ -81,9 +81,9 @@ def test_identical_search_is_served_from_cache_without_calling_adzuna(adzuna_con
     first = search_job_offers("python", before_request=lambda: before.append(1))
     second = search_job_offers("python", before_request=lambda: before.append(1))
 
-    assert len(calls) == 1 and len(before) == 1  # la caché ni llama ni cuenta cuota
+    assert len(calls) == 1 and len(before) == 1
     assert first == second
-    second[0]["title"] = "mutado"  # la caché devuelve copias: no se contamina
+    second[0]["title"] = "mutado"
     assert search_job_offers("python")[0]["title"] == "A"
 
 
@@ -107,7 +107,7 @@ def test_cache_entries_expire(adzuna_configured, monkeypatch):
     clock["now"] += 9 * 60
     search_job_offers("python")
     assert len(calls) == 1
-    clock["now"] += 2 * 60  # 11 min desde la primera
+    clock["now"] += 2 * 60
     search_job_offers("python")
     assert len(calls) == 2
 
@@ -145,5 +145,5 @@ def test_http_errors_are_not_cached(adzuna_configured, monkeypatch):
 
     with pytest.raises(job_search.JobSearchError):
         search_job_offers("python")
-    assert search_job_offers("python") == []  # el fallo no quedó "cacheado"
+    assert search_job_offers("python") == []
     assert len(attempts) == 2

@@ -89,7 +89,6 @@ def _user_message(candidate: Candidate, offer: Offer, language: str) -> str:
 
 
 def generate_ai_letter(candidate: Candidate, offer: Offer, language: str) -> str:
-    """Genera la carta con Claude. Lanza CoverLetterError ante cualquier fallo."""
     if not settings.ANTHROPIC_API_KEY:
         raise CoverLetterError("ANTHROPIC_API_KEY no configurada")
 
@@ -122,8 +121,6 @@ def generate_ai_letter(candidate: Candidate, offer: Offer, language: str) -> str
         raise CoverLetterError("respuesta vacía")
     return text[:MAX_LETTER_CHARS]
 
-
-# --- Plantilla sin IA ---------------------------------------------------------
 
 _TEMPLATES = {
     "es": {

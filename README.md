@@ -1,185 +1,96 @@
 # Postulare — Backend
 
-API REST del proyecto **Postulare**: seguimiento de candidaturas de empleo con
-búsqueda y scoring automático de ofertas afines a tu perfil.
+🇪🇸 Español · [🇬🇧 English](README.en.md)
 
-Stack: **Python 3.12 · FastAPI · SQLAlchemy 2.0 · Alembic · PostgreSQL · JWT**.
+API REST de **Postulare**, una aplicación para organizar tu búsqueda de empleo: guarda tus candidaturas, encuentra ofertas afines a tu perfil, puntúa cada una según lo bien que encaja contigo y te ayuda a escribir la carta de presentación.
 
-> Frontend (Angular 18) en un repositorio hermano: [postulare-frontend](https://github.com/costanna/postulare-frontend).
+- 🌐 Demo en vivo: <https://postulare.vercel.app> (pulsa **«Prueba la demo»**, no hace falta registrarse)
+- 📖 Documentación interactiva de la API (Swagger): <https://postulare-backend.onrender.com/docs>
+- 🖥️ Frontend (Angular 18): [postulare-frontend](https://github.com/costanna/postulare-frontend)
 
-## Estado del proyecto
+> La API corre en el plan gratuito de Render, que duerme el servicio tras un rato sin uso: la primera petición puede tardar ~30 s en despertarlo.
 
-Este backend se construye de forma incremental, en ramas por funcionalidad:
+**Stack:** Python 3.12 · FastAPI · SQLAlchemy 2 · Alembic · PostgreSQL (Neon) · JWT · pytest
 
-- [x] `feature/backend-bootstrap` — estructura del proyecto, modelo de datos, migración inicial de Alembic, autenticación JWT (registro, login, refresh, recuperación de contraseña) con tests
-- [x] `feature/profile-applications-events` — perfil de usuario, CRUD de candidaturas (con filtros y paginación) y eventos/timeline, con tests
-- [x] `feature/matching` — cliente Adzuna, scoring nivel 1 (keywords), endpoints de matches (buscar/listar/convertir/descartar), con tests simulados
-- [x] `feature/stats` — estadísticas del dashboard (resumen, por estado, evolución mensual, por origen), con tests
-- [x] Docker Compose (backend + PostgreSQL); el frontend ya tiene su propio `Dockerfile` y ambos se orquestan juntos desde el [`docker-compose.yml`](../docker-compose.yml) de la carpeta raíz
+## ¿Qué es Postulare?
 
-**Backend funcionalmente completo de extremo a extremo (MVP del prompt maestro, pasos 1-5)**, más un paquete de mejoras:
+Buscar trabajo genera mucho ruido: decenas de candidaturas en hojas de cálculo, ofertas repetidas, no saber a quién hay que volver a escribir. Postulare junta en un solo sitio:
 
-- **Cartas de presentación por oferta** (`POST /matches/{id}/cover-letter`): con IA (Claude) si hay clave y quedan cartas del día; si no, con una plantilla gratuita en es/ca/en. Siempre devuelve una carta.
-- **Importar CV en PDF** (`POST /profile/import-cv`): propone puesto, ubicación, nivel, skills y resumen. El PDF se lee en memoria y se descarta; el usuario revisa la propuesta antes de guardarla.
-- **Seguimientos** (`GET /applications/follow-ups`): candidaturas abiertas sin novedades desde hace `FOLLOW_UP_DAYS` días.
-- **Exportar a CSV** (`GET /applications/export`).
-- **Ofertas repetidas**: la búsqueda descarta reanuncios y ofertas que ya están en tus candidaturas; los matches indican `already_tracked`.
-- **Prueba la demo** (`POST /auth/demo`): cuenta temporal con datos de ejemplo, sin registro (ver más abajo).
+| | |
+|---|---|
+| **Candidaturas** | Tablero Kanban y tabla con filtros. Cada cambio de estado (guardada → enviada → entrevista → oferta…) deja rastro en una línea de tiempo. |
+| **Ofertas recomendadas** | Busca en [Adzuna](https://developer.adzuna.com/) con tu puesto y tus skills, descarta ofertas de otro nivel y repetidas, y puntúa cada una de 0 a 100. |
+| **Carta de presentación** | Por oferta, con IA (Claude) si está activada o con una plantilla gratuita en catalán, castellano e inglés. |
+| **Importar CV** | Sube tu CV en PDF y se rellena el perfil (puesto, ubicación, nivel, skills, resumen). El PDF no se guarda. |
+| **Seguimientos** | Avisa de las candidaturas que llevan días sin novedades. |
+| **Exportar** | Todas tus candidaturas en CSV. |
+| **Demo sin registro** | Cuenta temporal con datos de ejemplo para probar la app. |
 
-El scoring razonado con IA (nivel 2) sigue pendiente; hoy el scoring es por palabras clave.
+## Capturas
+
+<p>
+  <img src="https://raw.githubusercontent.com/costanna/postulare-frontend/main/docs/screenshots/dashboard.png" alt="Dashboard con seguimientos pendientes" width="49%">
+  <img src="https://raw.githubusercontent.com/costanna/postulare-frontend/main/docs/screenshots/matches.png" alt="Ofertas recomendadas" width="49%">
+  <img src="https://raw.githubusercontent.com/costanna/postulare-frontend/main/docs/screenshots/cover-letter.png" alt="Carta de presentación" width="49%">
+  <img src="https://raw.githubusercontent.com/costanna/postulare-frontend/main/docs/screenshots/profile-cv-import.png" alt="Importar CV" width="49%">
+</p>
+
+## Arquitectura
+
+```mermaid
+flowchart LR
+    U[Navegador] --> V[Frontend Angular<br/>Vercel]
+    V -->|HTTPS + JWT| R[API FastAPI<br/>Render]
+    R --> N[(PostgreSQL<br/>Neon)]
+    R -->|ofertas| A[Adzuna API]
+    R -.->|cartas, opcional| C[Anthropic API]
+```
+
+El backend es la única pieza que habla con servicios de terceros: el navegador nunca ve las claves de Adzuna ni de Anthropic.
+
+## Endpoints principales
+
+Todos salvo `/auth/*` y `/health` exigen `Authorization: Bearer <token>` y solo devuelven datos del usuario autenticado. El detalle completo está en `/docs`.
+
+| Recurso | Endpoints |
+|---|---|
+| Autenticación | `POST /auth/register` · `/auth/login` · `/auth/refresh` · `/auth/forgot-password` · `/auth/reset-password` · `/auth/demo` · `GET /auth/me` |
+| Perfil | `GET/PATCH /profile` · `POST /profile/import-cv` |
+| Candidaturas | `GET/POST /applications` · `GET/PATCH/DELETE /applications/{id}` · `GET /applications/follow-ups` · `GET /applications/export` |
+| Eventos | `GET/POST /applications/{id}/events` · `DELETE /events/{id}` |
+| Ofertas | `GET/PUT /matches/filters` · `POST /matches/search` · `GET /matches` · `POST /matches/{id}/convert` · `/dismiss` · `/cover-letter` |
+| Estadísticas | `GET /stats/summary` · `/by-status` · `/timeline` · `/by-source` |
 
 ## Puesta en marcha local
 
-### Requisitos
-
-- Python 3.12+
-- PostgreSQL 16 (o Docker)
-
-### 1. Clonar e instalar dependencias
+Requisitos: Python 3.12+ y PostgreSQL 16 (o Docker).
 
 ```bash
 python -m venv .venv
-source .venv/Scripts/activate   # Windows (Git Bash) — en cmd: .venv\Scripts\activate
+source .venv/Scripts/activate        # Windows (Git Bash); en Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-### 2. Variables de entorno
-
-```bash
-cp .env.example .env
-# Edita .env con tus valores (DATABASE_URL, SECRET_KEY, ADZUNA_APP_ID/KEY...)
-```
-
-### 3. Base de datos y migraciones
-
-Con Docker (recomendado):
-
-```bash
-docker compose up -d db
+cp .env.example .env                 # rellena DATABASE_URL, SECRET_KEY y, si quieres buscar ofertas, ADZUNA_APP_ID/KEY
+docker compose up -d db              # PostgreSQL local (o apunta DATABASE_URL a tu propia base)
 alembic upgrade head
-```
-
-O contra un PostgreSQL local ya existente, ajustando `DATABASE_URL` en `.env`.
-
-### 4. Arrancar la API
-
-```bash
 uvicorn app.main:app --reload
 ```
 
-- API: http://localhost:8000
-- Documentación interactiva (Swagger): http://localhost:8000/docs
-- Documentación alternativa (ReDoc): http://localhost:8000/redoc
+- API: <http://localhost:8000> · Swagger: <http://localhost:8000/docs>
+- Todo en Docker (base de datos + API, con migraciones automáticas): `docker compose up --build`
 
-### Todo junto con Docker Compose
+### Variables de entorno
 
-```bash
-docker compose up --build
-```
+La lista completa y comentada está en [`.env.example`](.env.example). Nunca subas un `.env` real (ya está en `.gitignore`).
 
-Levanta PostgreSQL y el backend (aplicando migraciones automáticamente al arrancar).
-
-## Despliegue en Render
-
-El servicio web se despliega en Render; la base de datos vive en
-[Neon](https://neon.tech) (Postgres serverless, capa gratuita sin la
-caducidad a los 90 días que tiene la de Render).
-
-### 1. Base de datos en Neon
-
-1. Crea una cuenta/proyecto en [neon.tech](https://neon.tech) (tiene capa gratuita).
-2. En el dashboard del proyecto, copia la **cadena de conexión "directa"**
-   (no la que pone "pooled"/"pgbouncer" — con un único servicio de Render
-   corriendo de forma continua no hace falta el pooler, y evita problemas
-   de PgBouncer en modo transacción con SQLAlchemy). Tiene esta forma:
-
-   ```text
-   postgresql://usuario:contraseña@ep-xxxx.eu-central-1.aws.neon.tech/postulare?sslmode=require
-   ```
-
-   El `?sslmode=require` es obligatorio — Neon no acepta conexiones sin TLS.
-3. Guarda esa cadena: es el `DATABASE_URL` del paso 3.
-
-### 2. Servicio web en Render
-
-[`render.yaml`](render.yaml) es un [Blueprint de Render](https://render.com/docs/blueprint-spec):
-describe el servicio web a partir del `Dockerfile`.
-
-1. Sube este repositorio a GitHub (si no lo está ya).
-2. En el dashboard de Render: **New +** → **Blueprint**, y selecciona el repo.
-3. Render pide los valores marcados como "a rellenar" en `render.yaml`:
-   - `DATABASE_URL`: la cadena de conexión de Neon del paso anterior
-   - `CORS_ORIGINS` y `FRONTEND_URL`: la URL real del frontend en Vercel
-     (sin barra final), p. ej. `https://postulare.vercel.app`
-   - `ADZUNA_APP_ID` / `ADZUNA_APP_KEY`: para que "Buscar ofertas" funcione
-     (sin ellos, ese endpoint devuelve error 502; el resto de la app va sin problema)
-4. `SECRET_KEY` se genera sola. El resto de variables (SMTP, etc.) son
-   opcionales — ver [`.env.example`](.env.example).
-5. Cada despliegue aplica las migraciones pendientes automáticamente
-   (`docker-entrypoint.sh` corre `alembic upgrade head` antes de arrancar
-   uvicorn) directamente contra Neon.
-
-El health check de Render usa `GET /health`.
-
-Railway es la alternativa mencionada en el README raíz: no necesita
-`render.yaml` (detecta el `Dockerfile` solo), pero el mismo `DATABASE_URL`
-de Neon y las mismas variables de entorno de arriba aplican igual.
-
-## Proteger tu cuota de Adzuna (demo pública)
-
-Cada "Buscar ofertas" real consume una llamada de tu cuota gratuita de
-Adzuna. Si compartes la demo, la protegen cuatro capas, de la más fina a la
-que no se puede rodear:
-
-1. **Cooldown por usuario** (`MATCH_SEARCH_COOLDOWN_MINUTES`, 10 min).
-2. **Caché de búsquedas idénticas** (`ADZUNA_CACHE_MINUTES`, 6 h): dos
-   personas con el mismo perfil y filtros comparten una sola llamada real. Vive
-   en memoria del proceso, así que se pierde cuando Render duerme el servicio.
-3. **Límite por IP** en registro, login y recuperar contraseña
-   (`REGISTER_LIMIT_PER_HOUR`, `LOGIN_LIMIT_PER_MINUTE`, ...). Evita que un
-   script llene la base de datos de cuentas. La IP sale de `X-Forwarded-For`,
-   que un atacante decidido puede falsear: por eso hay una cuarta capa.
-4. **Tope diario global** (`ADZUNA_DAILY_LIMIT`, 50): cuenta las llamadas
-   *reales* a Adzuna de todos los usuarios juntos (tabla `adzuna_usage`). Al
-   alcanzarlo, "Buscar ofertas" responde `503` con `Retry-After` hasta el día
-   siguiente (UTC) y el resto de la app sigue funcionando. Esta es la garantía:
-   no depende de quién llame ni desde dónde. `0` = sin tope.
-
-Ajusta el tope a la cuota real de tu plan de Adzuna. En Render, las variables
-de un servicio ya creado no se actualizan solas desde `render.yaml`: cámbialas
-en el dashboard (si no, se usan los valores por defecto de arriba).
-
-## Cartas con IA: control del gasto
-
-A diferencia de Adzuna, **cada carta generada con Claude cuesta dinero** (con
-`claude-opus-5`, del orden de céntimos por carta; `claude-haiku-4-5` sale bastante
-más barato; comprueba el precio vigente en la consola de Anthropic). Es opcional y se controla así:
-
-- **Sin `ANTHROPIC_API_KEY` no se gasta nada**: la carta sale de una plantilla
-  gratuita con los mismos datos del perfil y de la oferta.
-- **Tope diario global** (`LLM_DAILY_LIMIT`, 20) y **por usuario**
-  (`COVER_LETTER_DAILY_LIMIT_PER_USER`, 5), contados en la tabla `llm_usage`. Al
-  agotarse, sigue saliendo la plantilla (nunca un error). Con los valores por
-  defecto el gasto máximo diario son 20 cartas, una cifra conocida de antemano
-  (unos pocos dólares como mucho, aunque alguien intente abusar).
-- Si la API de IA falla, se devuelve la plantilla y **se devuelve la reserva** de
-  los topes (no se cobra un intento fallido al usuario).
-- Las cuentas demo **nunca** llaman a la IA.
-- La descripción de la oferta es texto de un tercero: va delimitada y el prompt
-  ordena no seguir instrucciones que contenga; al modelo solo se le pasan datos
-  reales del perfil y se le prohíbe inventar experiencia.
-- Una carta ya generada se guarda en el match y no se vuelve a pedir salvo que el
-  usuario pulse "regenerar".
-
-## Cuentas demo ("Prueba la demo")
-
-`POST /auth/demo` crea al momento un usuario con datos de ejemplo ficticios (sin
-pedir email ni contraseña) para que cualquiera pueda probar la app. No cuesta
-nada ni se puede abusar: no puede buscar ofertas reales (403, no gasta Adzuna),
-sus cartas usan siempre plantilla, caduca a las `DEMO_TTL_HOURS` horas (la sesión
-deja de valer y las cuentas caducadas se borran, con sus datos, al crear la
-siguiente demo), y hay un límite por IP (`DEMO_LIMIT_PER_HOUR`) y un tope global
-de demos al día (`DEMO_ACCOUNTS_DAILY_LIMIT`).
+| Variable | ¿Obligatoria? | Para qué sirve |
+|---|---|---|
+| `DATABASE_URL` | Sí | Conexión a PostgreSQL (con Neon, la cadena «directa» y `?sslmode=require`) |
+| `SECRET_KEY` | Sí | Firma de los JWT. Usa un valor largo y aleatorio |
+| `CORS_ORIGINS`, `FRONTEND_URL` | Sí en producción | URL del frontend, sin barra final. `FRONTEND_URL` se usa en el enlace del email de recuperar contraseña |
+| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Para buscar ofertas | Claves gratuitas de [developer.adzuna.com](https://developer.adzuna.com/) |
+| `ANTHROPIC_API_KEY` | No | Activa las cartas con IA. Sin ella se usa la plantilla gratuita |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | No | Envío real del email de recuperar contraseña. Sin SMTP el enlace solo se escribe en el log |
 
 ## Tests
 
@@ -187,34 +98,96 @@ de demos al día (`DEMO_ACCOUNTS_DAILY_LIMIT`).
 pytest
 ```
 
-Los tests usan una base de datos SQLite en memoria (no tocan PostgreSQL ni Alembic),
-por lo que no requieren infraestructura adicional.
+188 tests con SQLite en memoria: no tocan PostgreSQL, ni Alembic, ni las APIs reales (Adzuna y Anthropic se simulan).
 
-## Estructura del proyecto
+## Despliegue: Neon + Render
 
-```
-app/
-├── main.py          # instancia de FastAPI, CORS, routers
-├── core/            # configuración (.env) y seguridad (JWT, hashing)
-├── db/              # engine, sesión, tipos de columna portables
-├── models/          # modelos SQLAlchemy (users, applications, events, job_offers, matches)
-├── schemas/         # esquemas Pydantic (request/response)
-├── routers/         # endpoints agrupados por recurso
-├── services/         # lógica de negocio (email, búsqueda de ofertas, scoring, estadísticas)
-└── deps.py          # dependencias comunes (sesión de BD, usuario autenticado)
-alembic/             # migraciones de base de datos
-tests/                # tests con pytest
-```
+### 1. Base de datos en Neon
 
-## Variables de entorno
+1. Crea un proyecto en [neon.tech](https://neon.tech) (capa gratuita sin caducidad).
+2. Copia la cadena de conexión **«directa»** (no la «pooled»): `postgresql://usuario:contraseña@ep-xxxx.aws.neon.tech/postulare?sslmode=require`.
 
-Ver [`.env.example`](.env.example) para la lista completa y comentada. Nunca subas
-un `.env` real al repositorio — ya está en `.gitignore`.
+### 2. Servicio web en Render
+
+1. En Render: **New +** → **Blueprint** y elige este repositorio. [`render.yaml`](render.yaml) describe el servicio a partir del `Dockerfile`.
+2. Rellena los valores marcados como pendientes (tabla de abajo). `SECRET_KEY` se genera sola.
+3. Cada despliegue ejecuta `alembic upgrade head` antes de arrancar, así que las migraciones se aplican solas contra Neon. El health check es `GET /health`.
+
+### Qué hay que configurar en Render
+
+Las variables de un servicio ya creado **no se sincronizan solas** desde `render.yaml`: añádelas a mano en *Dashboard → tu servicio → Environment*.
+
+| Variable | Valor | Notas |
+|---|---|---|
+| `DATABASE_URL` | Cadena de Neon | Obligatoria |
+| `SECRET_KEY` | Aleatoria y larga | Obligatoria. Si la cambias, se cierran todas las sesiones |
+| `CORS_ORIGINS` | `https://postulare.vercel.app` | Sin barra final |
+| `FRONTEND_URL` | `https://postulare.vercel.app` | Debe ser exacta: el email de recuperar contraseña enlaza a `FRONTEND_URL/auth/reset-password` |
+| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Tus claves de Adzuna | Sin ellas «Buscar ofertas» responde 502 |
+| `ANTHROPIC_API_KEY` | Tu clave de Anthropic | **Opcional**: activa las cartas con IA |
+| `ANTHROPIC_MODEL` | `claude-opus-5` (por defecto) | `claude-haiku-4-5` sale mucho más barato |
+| `LLM_DAILY_LIMIT` / `COVER_LETTER_DAILY_LIMIT_PER_USER` | `20` / `5` | Topes de gasto diarios (global y por usuario) |
+| `DEMO_ENABLED`, `DEMO_TTL_HOURS` | `true`, `24` | Cuentas demo temporales |
+| `SMTP_*` | Tu proveedor de correo | **Opcional**, pero sin ello no llega ningún email de recuperar contraseña |
+
+## Ofertas de empleo: qué APIs se pueden usar
+
+- **Adzuna** (en uso): API oficial y gratuita, agrega ofertas de muchas webs.
+- **InfoJobs**: tiene [API oficial](https://developer.infojobs.net/) (`GET /api/9/offer`) que se autentica con un Client ID y Client Secret de una app registrada en su portal de desarrolladores. Es viable como segunda fuente; requiere registrar la app y adaptar el cliente (`app/services/job_search.py`).
+- **LinkedIn**: **no** existe una API pública para buscar ofertas; su API de empleo es solo para socios que *publican* ofertas y no acepta nuevos. Hacer scraping incumple sus términos y arriesga el bloqueo de la cuenta, así que el proyecto no lo hace.
+
+## Protección de cuotas y gasto
+
+Una demo pública no debe agotar tus cuotas ni tu saldo. Cada recurso de pago tiene su tope, y el que importa no depende de quién llame ni desde dónde.
+
+**Adzuna (gratis, pero con cuota):**
+
+1. Espera entre búsquedas por usuario (`MATCH_SEARCH_COOLDOWN_MINUTES`, 10 min).
+2. Caché de búsquedas idénticas (`ADZUNA_CACHE_MINUTES`, 6 h).
+3. Límite por IP en registro, login y recuperar contraseña. La IP viene de `X-Forwarded-For`, que se puede falsear: por eso hay una cuarta capa.
+4. **Tope diario global** (`ADZUNA_DAILY_LIMIT`, 50), contado en la tabla `adzuna_usage`. Al alcanzarlo, la búsqueda responde `503` y el resto de la app sigue.
+
+**Cartas con IA (cada carta cuesta dinero):**
+
+- Sin `ANTHROPIC_API_KEY` no se gasta nada: sale la plantilla gratuita.
+- Tope global diario (`LLM_DAILY_LIMIT`) y por usuario (`COVER_LETTER_DAILY_LIMIT_PER_USER`), en la tabla `llm_usage`. Al agotarse sigue saliendo la plantilla, nunca un error.
+- Si la IA falla se devuelve la plantilla y **se devuelve la reserva** del tope.
+- La descripción de la oferta es texto de un tercero: va delimitada y el prompt ordena no obedecer instrucciones que contenga.
+
+## Cuentas demo
+
+`POST /auth/demo` crea al instante un usuario con datos ficticios, sin email ni contraseña. No puede buscar ofertas reales (403), sus cartas usan siempre la plantilla, caduca a las `DEMO_TTL_HOURS` horas y las caducadas se borran solas con todos sus datos. Hay límite por IP y un tope global de demos al día.
 
 ## Seguridad
 
-- Contraseñas con `bcrypt` (nunca en texto plano)
-- JWT de acceso de corta duración (15 min) + refresh token (7 días)
-- Todo endpoint de candidaturas, eventos y matches filtra siempre por el `user_id`
-  del token — un usuario nunca puede ver ni modificar datos de otro
-- CORS restringido a los orígenes definidos en `CORS_ORIGINS`
+- Contraseñas con `bcrypt`; JWT de acceso de 15 min y refresh de 7 días.
+- Cada endpoint filtra por el `user_id` del token: nadie ve ni modifica datos de otro usuario (un recurso ajeno responde 404, no 403).
+- Los emails no distinguen mayúsculas; «recuperar contraseña» responde igual exista o no la cuenta.
+- CORS restringido a `CORS_ORIGINS`. El CSV exportado neutraliza fórmulas de Excel.
+- El CV se procesa en memoria y se descarta.
+
+## Estructura del proyecto
+
+```text
+app/
+├── main.py        FastAPI, CORS y routers
+├── core/          configuración, seguridad (JWT, hashing) y límites por IP
+├── db/            engine, sesión y tipos portables PostgreSQL/SQLite
+├── models/        modelos SQLAlchemy
+├── schemas/       esquemas Pydantic (entrada/salida)
+├── routers/       endpoints por recurso
+└── services/      lógica de negocio: búsqueda y puntuación de ofertas, cartas,
+                   importador de CV, duplicados, demo, cuotas de IA, estadísticas
+alembic/           migraciones
+tests/             pytest
+```
+
+## Ideas para seguir
+
+- Segunda fuente de ofertas: InfoJobs.
+- Puntuación de ofertas razonada con IA (hoy es por palabras clave).
+- Recordatorios por email de los seguimientos pendientes.
+
+## Licencia
+
+[MIT](LICENSE) © 2026 Anna Costa

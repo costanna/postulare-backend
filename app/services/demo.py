@@ -90,7 +90,6 @@ def is_demo_expired(user: User) -> bool:
 
 
 def purge_expired(db: Session) -> int:
-    """Borra las cuentas demo caducadas (con todos sus datos, en cascada)."""
     cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.DEMO_TTL_HOURS)
     expired = db.query(User).filter(User.is_demo.is_(True), User.created_at < cutoff).limit(_PURGE_BATCH).all()
     for user in expired:

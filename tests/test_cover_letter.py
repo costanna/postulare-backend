@@ -35,8 +35,6 @@ OFFER = Offer(
 )
 
 
-# --- Plantilla (gratis) ---------------------------------------------------------
-
 
 @pytest.mark.parametrize("language,greeting,bye", [("es", "Hola,", "Un saludo,"), ("ca", "Hola,", "Salutacions,"), ("en", "Hello,", "Kind regards,")])
 def test_template_is_localized_and_signed(language, greeting, bye):
@@ -50,7 +48,7 @@ def test_template_is_localized_and_signed(language, greeting, bye):
 def test_template_only_names_skills_the_offer_mentions():
     letter = build_template_letter(CANDIDATE, OFFER, "es")
     assert "Angular y Python" in letter
-    assert "Docker" not in letter and "Cobol" not in letter  # no aparecen en la oferta
+    assert "Docker" not in letter and "Cobol" not in letter
 
 
 def test_template_never_invents_facts_without_profile_data():
@@ -66,8 +64,6 @@ def test_template_english_uses_correct_article():
     senior = Candidate(full_name="X Y", position="Engineer", seniority="mid")
     assert "I am an Engineer" in build_template_letter(senior, OFFER, "en")
 
-
-# --- Cliente de IA (simulado) ----------------------------------------------------
 
 
 class FakeMessages:
@@ -160,8 +156,6 @@ def test_ai_letter_maps_sdk_errors(monkeypatch, index):
         generate_ai_letter(CANDIDATE, OFFER, "es")
 
 
-# --- Endpoint --------------------------------------------------------------------
-
 
 @pytest.fixture()
 def match_id(client, auth_headers, monkeypatch):
@@ -186,7 +180,6 @@ def test_letter_without_api_key_uses_template(client, auth_headers, match_id, mo
     assert body["ai_available"] is False
     assert "TechCorp" in body["cover_letter"]
 
-    # Queda guardada en el match
     stored = client.get("/matches", headers=auth_headers).json()[0]
     assert stored["cover_letter"] == body["cover_letter"]
     assert stored["cover_letter_source"] == "template"
@@ -202,7 +195,7 @@ def test_letter_with_ai_is_saved_and_reused_without_new_call(client, auth_header
 
     again = _letter(client, auth_headers, match_id).json()
     assert again["cover_letter"] == "Carta de Claude"
-    assert len(fake.calls) == 1  # sin regenerar no se gasta IA
+    assert len(fake.calls) == 1
 
     regenerated = _letter(client, auth_headers, match_id, regenerate=True).json()
     assert regenerated["source"] == "ai"
@@ -225,7 +218,7 @@ def test_per_user_daily_cap_falls_back_to_template(client, auth_headers, match_i
     sources = [_letter(client, auth_headers, match_id, regenerate=True).json() for _ in range(3)]
     assert [s["source"] for s in sources] == ["ai", "ai", "template"]
     assert sources[2]["template_reason"] == "user_limit"
-    assert len(fake.calls) == 2  # la tercera NO llamó a la IA
+    assert len(fake.calls) == 2
 
 
 def test_global_daily_cap_is_shared_between_users_and_refunds_user_quota(client, auth_headers, match_id, monkeypatch):
@@ -248,7 +241,7 @@ def test_global_daily_cap_is_shared_between_users_and_refunds_user_quota(client,
     assert len(fake.calls) == 1
 
     # La reserva del tope por usuario se devolvió: no perdió una carta por culpa del tope global
-    monkeypatch.setattr(settings, "LLM_DAILY_LIMIT", 0)  # sin tope global
+    monkeypatch.setattr(settings, "LLM_DAILY_LIMIT", 0)
     ok = _letter(client, other, other_match, regenerate=True).json()
     assert ok["source"] == "ai"
     assert ok["ai_remaining"] == settings.COVER_LETTER_DAILY_LIMIT_PER_USER - 1
@@ -259,7 +252,7 @@ def test_ai_failure_returns_template_and_refunds_quota(client, auth_headers, mat
     body = _letter(client, auth_headers, match_id).json()
     assert body["source"] == "template"
     assert body["template_reason"] == "ai_error"
-    assert body["cover_letter"]  # nunca se queda sin carta
+    assert body["cover_letter"]
     assert body["ai_remaining"] == min(settings.COVER_LETTER_DAILY_LIMIT_PER_USER, settings.LLM_DAILY_LIMIT)
 
 

@@ -1,4 +1,3 @@
-"""Enums compartidos por los modelos SQLAlchemy y los esquemas Pydantic."""
 import enum
 
 

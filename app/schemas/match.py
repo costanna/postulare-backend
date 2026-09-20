@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -32,7 +32,6 @@ class MatchSearchResult(BaseModel):
 
 
 class CoverLetterRequest(BaseModel):
-    # Idioma de la carta; por defecto el idioma preferido del perfil
     language: PreferredLanguage | None = None
     # Sin esto, si ya hay una carta guardada se devuelve tal cual (sin gastar IA)
     regenerate: bool = False
@@ -48,3 +47,10 @@ class CoverLetterRead(BaseModel):
     ai_available: bool = False
     # Cartas con IA que le quedan hoy a este usuario (None = sin tope o IA no disponible)
     ai_remaining: int | None = None
+
+
+class ConvertRequest(BaseModel):
+    # True = ya has aplicado a la oferta: la candidatura nace como "enviada" en vez de "guardada"
+    applied: bool = False
+    # Fecha local de la usuaria; si no llega, se usa la de hoy (UTC)
+    applied_at: date | None = None

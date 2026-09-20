@@ -27,14 +27,12 @@ def used_today(db: Session, scope: str) -> int:
 
 
 def remaining(db: Session, scope: str, limit: int) -> int | None:
-    """Llamadas que quedan hoy en este ámbito; None si no hay tope (limit <= 0)."""
     if limit <= 0:
         return None
     return max(0, limit - used_today(db, scope))
 
 
 def try_consume(db: Session, scope: str, limit: int) -> bool:
-    """Reserva una llamada. False si el tope de hoy ya está alcanzado. limit <= 0 = sin tope."""
     if limit <= 0:
         return True
 
@@ -65,7 +63,6 @@ def try_consume(db: Session, scope: str, limit: int) -> bool:
 
 
 def release(db: Session, scope: str) -> None:
-    """Devuelve una llamada reservada (la IA falló y no se llegó a gastar nada)."""
     row = db.query(LlmUsage).filter(LlmUsage.day == _today(), LlmUsage.scope == scope).with_for_update().first()
     if row is not None and row.calls > 0:
         row.calls -= 1

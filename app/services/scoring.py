@@ -10,7 +10,6 @@ import re
 from app.models.enums import Seniority
 from app.models.user import User
 
-# Puntos máximos que aporta cada bloque; suman como máximo 100.
 _MAX_SKILLS_POINTS = 70
 _LOCATION_POINTS = 15
 _SENIORITY_POINTS = 15
@@ -34,8 +33,6 @@ def _mentions(skill: str, text: str) -> bool:
 
 
 def score_job_offer(profile: User, offer: dict) -> tuple[int, str]:
-    """Devuelve (score 0-100, reasoning) para una oferta normalizada (dict con
-    title/description/location) comparada con el perfil del usuario."""
     text = f"{offer.get('title') or ''} {offer.get('description') or ''}".lower()
 
     skills = [s.strip().lower() for s in (profile.skills or []) if s and s.strip()]

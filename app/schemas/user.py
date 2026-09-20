@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.enums import PreferredLanguage, Seniority
 
@@ -24,8 +24,6 @@ class UserRead(BaseModel):
 
 
 class ProfileUpdate(BaseModel):
-    """Todos los campos son opcionales: PATCH parcial del perfil."""
-
     full_name: str | None = None
     skills: list[str] | None = None
     location: str | None = None
@@ -35,10 +33,15 @@ class ProfileUpdate(BaseModel):
     preferred_language: PreferredLanguage | None = None
     about: str | None = Field(default=None, max_length=2000)
 
+    @field_validator("skills", "preferred_language")
+    @classmethod
+    def _not_null(cls, value):
+        if value is None:
+            raise ValueError("Este campo no puede ser nulo")
+        return value
+
 
 class CvImportResult(BaseModel):
-    """Propuesta extraída de un CV: no se guarda nada hasta que el usuario la confirma."""
-
     full_name: str | None = None
     desired_position: str | None = None
     location: str | None = None

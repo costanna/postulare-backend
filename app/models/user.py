@@ -17,7 +17,6 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-    # Perfil - base del matching
     skills: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     desired_position: Mapped[str | None] = mapped_column(String(255), nullable=True)

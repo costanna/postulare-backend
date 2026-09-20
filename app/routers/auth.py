@@ -1,5 +1,8 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -29,6 +32,8 @@ from app.schemas.user import UserRead
 from app.services.demo import DemoLimitReached, create_demo_user, is_demo_expired
 from app.services.email import send_password_reset_email
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -39,7 +44,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     dependencies=[Depends(limit_register)],
 )
 def register(payload: UserRegister, db: Session = Depends(get_db)) -> User:
-    existing = db.query(User).filter(User.email == payload.email).first()
+    existing = db.query(User).filter(func.lower(User.email) == payload.email).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ese email ya está registrado")
 
@@ -56,7 +61,7 @@ def register(payload: UserRegister, db: Session = Depends(get_db)) -> User:
 
 @router.post("/login", response_model=TokenPair, dependencies=[Depends(limit_login)])
 def login(payload: UserLogin, db: Session = Depends(get_db)) -> TokenPair:
-    user = db.query(User).filter(User.email == payload.email).first()
+    user = db.query(User).filter(func.lower(User.email) == payload.email).first()
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email o contraseña incorrectos")
 
@@ -110,12 +115,16 @@ def me(current_user: User = Depends(get_current_user)) -> User:
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(limit_forgot_password)])
 def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> dict:
-    user = db.query(User).filter(User.email == payload.email).first()
+    user = db.query(User).filter(func.lower(User.email) == payload.email).first()
     # Respuesta genérica siempre, exista o no el email, para no filtrar qué
     # correos están registrados.
     if user:
         reset_token = create_reset_token(str(user.id))
-        send_password_reset_email(user.email, reset_token)
+        try:
+            send_password_reset_email(user.email, reset_token)
+        except Exception:
+            # Un fallo del SMTP no puede distinguirse desde fuera: si no, revelaría qué emails existen
+            logger.exception("No se pudo enviar el email de restablecimiento")
     return {"message": "Si el email existe, recibirás instrucciones para restablecer tu contraseña."}
 
 

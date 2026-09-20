@@ -57,7 +57,6 @@ def test_search_creates_matches_scored_and_sorted(client, auth_headers, monkeypa
 
     matches = client.get("/matches", headers=auth_headers).json()
     assert len(matches) == 2
-    # El primero debe ser el mas afin (mas skills + seniority + ubicacion coinciden)
     assert matches[0]["job_offer"]["title"].startswith("Junior Full Stack")
     assert matches[0]["score"] > matches[1]["score"]
     assert matches[0]["status"] == "new"

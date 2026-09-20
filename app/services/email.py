@@ -13,7 +13,7 @@ logger = logging.getLogger("postulare.email")
 
 
 def send_password_reset_email(to_email: str, reset_token: str) -> None:
-    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+    reset_link = f"{settings.FRONTEND_URL}/auth/reset-password?token={reset_token}"
 
     if not settings.SMTP_HOST:
         logger.info("SMTP no configurado. Enlace de restablecimiento para %s: %s", to_email, reset_link)

@@ -7,7 +7,6 @@ def _escape(text: str) -> str:
 
 
 def make_pdf(lines: list[str]) -> bytes:
-    """PDF de una página: una línea de texto por elemento de `lines` (vacío = PDF sin texto)."""
     body = "".join(f"({_escape(line)}) Tj T*\n" for line in lines)
     content = f"BT /F1 11 Tf 50 780 Td 14 TL\n{body}ET" if lines else ""
 

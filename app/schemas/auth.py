@@ -1,16 +1,25 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.models.enums import PreferredLanguage
 
 
-class UserRegister(BaseModel):
+class _NormalizedEmail(BaseModel):
+    """Los emails no distinguen mayúsculas: se guardan y comparan siempre en minúsculas."""
+
     email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def _lowercase(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class UserRegister(_NormalizedEmail):
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = None
 
 
-class UserLogin(BaseModel):
-    email: EmailStr
+class UserLogin(_NormalizedEmail):
     password: str
 
 
@@ -29,8 +38,8 @@ class AccessTokenOnly(BaseModel):
     token_type: str = "bearer"
 
 
-class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
+class ForgotPasswordRequest(_NormalizedEmail):
+    pass
 
 
 class ResetPasswordRequest(BaseModel):
@@ -39,6 +48,4 @@ class ResetPasswordRequest(BaseModel):
 
 
 class DemoRequest(BaseModel):
-    """Idioma de los datos de ejemplo de la cuenta demo."""
-
     language: PreferredLanguage = PreferredLanguage.es

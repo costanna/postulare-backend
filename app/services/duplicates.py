@@ -38,8 +38,6 @@ def normalize_url(url: str | None) -> str:
 
 
 class TrackedIndex:
-    """Candidaturas del usuario indexadas para saber si una oferta ya está en ellas."""
-
     def __init__(self, rows: list[tuple[str | None, str | None, str | None]]) -> None:
         self._keys = {tracked_key(company, position) for company, position, _ in rows}
         self._urls = {normalize_url(url) for _, _, url in rows if url}

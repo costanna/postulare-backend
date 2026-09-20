@@ -114,8 +114,6 @@ def test_search_wraps_http_errors(adzuna_configured, monkeypatch):
         search_job_offers("python")
 
 
-# --- Consulta construida a partir del perfil ---------------------------------
-
 from app.models.enums import Seniority  # noqa: E402
 from app.services.job_search import build_search_query  # noqa: E402
 

@@ -30,11 +30,21 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+_MAX_TRACKED_KEYS = 5000
+
+
+def _drop_expired(now: float, window_seconds: int) -> None:
+    for key in [k for k, hits in _hits.items() if not hits or now - hits[-1] > window_seconds]:
+        del _hits[key]
+
+
 def _check(bucket: str, ip: str, limit: int, window_seconds: int) -> None:
     if not settings.RATE_LIMIT_ENABLED or limit <= 0:
         return
 
     now = time.monotonic()
+    if len(_hits) > _MAX_TRACKED_KEYS:
+        _drop_expired(now, 3600)
     hits = _hits[f"{bucket}:{ip}"]
     while hits and now - hits[0] > window_seconds:
         hits.popleft()
