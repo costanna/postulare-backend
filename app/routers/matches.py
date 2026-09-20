@@ -31,6 +31,7 @@ from app.services.job_search import (
     search_job_offers,
 )
 from app.services.scoring import score_job_offer
+from app.services.work_mode import filter_by_work_mode
 
 logger = logging.getLogger(__name__)
 
@@ -212,8 +213,8 @@ def search_matches(
             exclude=filters.exclude,
             exclude_other_levels=filters.exclude_other_levels,
             max_days_old=filters.max_days_old,
-            # Adzuna solo devuelve un extracto: con "require" se piden más resultados para no quedarse sin ninguno
-            results_per_page=50 if filters.disability == "require" else 20,
+            # Adzuna solo devuelve un extracto: con estos filtros se piden más resultados para no quedarse sin ninguno
+            results_per_page=50 if filters.disability == "require" or filters.work_mode in ("remote", "hybrid") else 20,
             before_request=lambda: _consume_daily_quota(db),
         )
     ]
@@ -229,7 +230,9 @@ def search_matches(
                 before_request=lambda: _consume_infojobs_quota(db),
             )
         )
-    offers = filter_by_disability(_search_all_sources(sources), filters.disability)
+    offers = filter_by_work_mode(
+        filter_by_disability(_search_all_sources(sources), filters.disability), filters.work_mode
+    )
 
     current_user.last_match_search_at = datetime.now(timezone.utc)
     db.add(current_user)

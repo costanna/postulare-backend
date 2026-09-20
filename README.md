@@ -19,7 +19,7 @@ Buscar trabajo genera mucho ruido: decenas de candidaturas en hojas de cálculo,
 | | |
 |---|---|
 | **Candidaturas** | Tablero Kanban y tabla con filtros. Cada cambio de estado (guardada → enviada → entrevista → oferta…) deja rastro en una línea de tiempo. |
-| **Ofertas recomendadas** | Busca en [Adzuna](https://developer.adzuna.com/) (y en [InfoJobs](https://developer.infojobs.net/), si lo activas) con tu puesto y tus skills, descarta ofertas de otro nivel y repetidas (y, si quieres, filtra por empresas que mencionan la discapacidad), y puntúa cada una de 0 a 100. |
+| **Ofertas recomendadas** | Busca en [Adzuna](https://developer.adzuna.com/) (y en [InfoJobs](https://developer.infojobs.net/), si lo activas) con tu puesto y tus skills, descarta ofertas de otro nivel y repetidas (y, si quieres, filtra por empresas que mencionan la discapacidad o por modalidad: remoto, híbrido o presencial), y puntúa cada una de 0 a 100. |
 | **Carta de presentación** | Por oferta, con IA (Claude) si está activada o con una plantilla gratuita en catalán, castellano e inglés. |
 | **Importar CV** | Sube tu CV en PDF y se rellena el perfil (puesto, ubicación, nivel, skills, resumen). El PDF no se guarda. |
 | **Seguimientos** | Avisa de las candidaturas que llevan días sin novedades. |
@@ -99,7 +99,7 @@ La lista completa y comentada está en [`.env.example`](.env.example). Nunca sub
 pytest
 ```
 
-242 tests con SQLite en memoria: no tocan PostgreSQL, ni Alembic, ni las APIs reales (Adzuna y Anthropic se simulan).
+275 tests con SQLite en memoria: no tocan PostgreSQL, ni Alembic, ni las APIs reales (Adzuna y Anthropic se simulan).
 
 ## Despliegue: Neon + Render
 
