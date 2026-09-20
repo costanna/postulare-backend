@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
+
+from app.services.work_mode import detect_work_mode
 
 
 class JobOfferRead(BaseModel):
@@ -16,3 +18,9 @@ class JobOfferRead(BaseModel):
     salary_range: str | None = None
     url: str | None = None
     fetched_at: datetime
+
+    @computed_field
+    @property
+    def work_mode(self) -> str | None:
+        """"remote" | "hybrid" | "onsite" si la oferta lo dice; None si no."""
+        return detect_work_mode({"title": self.title, "location": self.location, "description": self.description})

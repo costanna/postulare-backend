@@ -24,6 +24,8 @@ class SearchFilters(BaseModel):
     # "require" = solo ofertas cuyo título, empresa o texto mencionan la discapacidad (empresas inclusivas);
     # "exclude" = descarta las que la mencionan; "any" = no filtra.
     disability: Literal["any", "require", "exclude"] = "any"
+    # Modalidad: "remote"/"hybrid" piden que la oferta lo diga; "onsite" incluye las que no dicen nada.
+    work_mode: Literal["any", "remote", "hybrid", "onsite"] = "any"
     # Oculta en el listado las ofertas con puntuación menor. Solo afecta a la vista.
     min_score: int = Field(default=0, ge=0, le=100)
 
