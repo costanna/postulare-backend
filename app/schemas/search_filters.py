@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -19,6 +21,9 @@ class SearchFilters(BaseModel):
     exclude_other_levels: bool = True
     # Solo ofertas publicadas en los últimos N días. None = sin límite.
     max_days_old: int | None = Field(default=None, ge=1, le=365)
+    # "require" = solo ofertas cuyo título, empresa o texto mencionan la discapacidad (empresas inclusivas);
+    # "exclude" = descarta las que la mencionan; "any" = no filtra.
+    disability: Literal["any", "require", "exclude"] = "any"
     # Oculta en el listado las ofertas con puntuación menor. Solo afecta a la vista.
     min_score: int = Field(default=0, ge=0, le=100)
 

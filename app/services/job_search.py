@@ -43,6 +43,23 @@ _SENIORITY_EXCLUDE: dict[Seniority, str] = {
 }
 
 
+# Raíces, no palabras enteras: "discapaci" cubre discapacidad (es), discapacitat (ca) y discapacitado/a
+_DISABILITY = re.compile(r"discapaci|minusval|disabilit|diversidad funcional|diversitat funcional", re.IGNORECASE)
+
+
+def mentions_disability(offer: dict) -> bool:
+    text = " ".join(str(offer.get(field) or "") for field in ("title", "company_name", "description"))
+    return _DISABILITY.search(text) is not None
+
+
+def filter_by_disability(offers: list[dict], mode: str) -> list[dict]:
+    if mode == "require":
+        return [offer for offer in offers if mentions_disability(offer)]
+    if mode == "exclude":
+        return [offer for offer in offers if not mentions_disability(offer)]
+    return offers
+
+
 class JobSearchError(Exception):
     """Fallo al consultar el proveedor de ofertas (config ausente o error de red/API)."""
 

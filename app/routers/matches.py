@@ -24,7 +24,12 @@ from app.services.application_status import stamp_applied_date
 from app.services.cover_letter import Candidate, Offer, build_template_letter, generate_ai_letter
 from app.services.duplicates import TrackedIndex, offer_key
 from app.services.infojobs import infojobs_enabled, search_infojobs
-from app.services.job_search import JobSearchError, build_search_query, search_job_offers
+from app.services.job_search import (
+    JobSearchError,
+    build_search_query,
+    filter_by_disability,
+    search_job_offers,
+)
 from app.services.scoring import score_job_offer
 
 logger = logging.getLogger(__name__)
@@ -207,6 +212,8 @@ def search_matches(
             exclude=filters.exclude,
             exclude_other_levels=filters.exclude_other_levels,
             max_days_old=filters.max_days_old,
+            # Adzuna solo devuelve un extracto: con "require" se piden más resultados para no quedarse sin ninguno
+            results_per_page=50 if filters.disability == "require" else 20,
             before_request=lambda: _consume_daily_quota(db),
         )
     ]
@@ -222,7 +229,7 @@ def search_matches(
                 before_request=lambda: _consume_infojobs_quota(db),
             )
         )
-    offers = _search_all_sources(sources)
+    offers = filter_by_disability(_search_all_sources(sources), filters.disability)
 
     current_user.last_match_search_at = datetime.now(timezone.utc)
     db.add(current_user)
