@@ -27,7 +27,14 @@ def search_job_offers(query: str, location: str | None = None, results_per_page:
         "app_id": settings.ADZUNA_APP_ID,
         "app_key": settings.ADZUNA_APP_KEY,
         "results_per_page": results_per_page,
-        "what": query,
+        # `what_or` (basta con que aparezca ALGUNA palabra), no `what` (deben
+        # aparecer TODAS): la consulta junta el puesto deseado y varias
+        # skills ("Junior Full Stack Developer Angular Python FastAPI SQL"),
+        # y con `what` no existe casi ninguna oferta con todas esas palabras
+        # (0 resultados contra la API real; con `what_or`, cientos). Adzuna
+        # ordena por relevancia, así que arriba quedan las que más coinciden,
+        # y el scoring propio (services/scoring.py) afina después.
+        "what_or": query,
         "content-type": "application/json",
     }
     if location:
