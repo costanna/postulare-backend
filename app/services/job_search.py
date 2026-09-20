@@ -67,6 +67,15 @@ def build_search_query(desired_position: str | None, skills: list[str] | None) -
     return " ".join(unique)
 
 
+def excluded_words(seniority: Seniority | None, exclude: str | None, exclude_other_levels: bool) -> list[str]:
+    words: list[str] = []
+    if exclude_other_levels and seniority:
+        words.extend(_SENIORITY_EXCLUDE.get(seniority, "").split())
+    if exclude:
+        words.extend(re.findall(r"[\w+#.]+", exclude))
+    return list(dict.fromkeys(word.lower() for word in words))
+
+
 def _role_words(position: str) -> list[str]:
     # Las ofertas se publican en masculino o como "Desarrollador/a": un
     # "Desarrolladora" del perfil no encontraría casi ninguna.
@@ -151,12 +160,7 @@ def search_job_offers(
     if max_days_old:
         search_params["max_days_old"] = max_days_old
 
-    excluded: list[str] = []
-    if exclude_other_levels and seniority:
-        excluded.extend(_SENIORITY_EXCLUDE.get(seniority, "").split())
-    if exclude:
-        excluded.extend(re.findall(r"[\w+#.]+", exclude))
-    excluded = list(dict.fromkeys(word.lower() for word in excluded))
+    excluded = excluded_words(seniority, exclude, exclude_other_levels)
     if excluded:
         search_params["what_exclude"] = " ".join(excluded)
 

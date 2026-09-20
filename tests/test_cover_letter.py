@@ -35,7 +35,6 @@ OFFER = Offer(
 )
 
 
-
 @pytest.mark.parametrize("language,greeting,bye", [("es", "Hola,", "Un saludo,"), ("ca", "Hola,", "Salutacions,"), ("en", "Hello,", "Kind regards,")])
 def test_template_is_localized_and_signed(language, greeting, bye):
     letter = build_template_letter(CANDIDATE, OFFER, language)
@@ -63,7 +62,6 @@ def test_template_english_uses_correct_article():
     assert "I am a junior Full Stack Developer" in letter
     senior = Candidate(full_name="X Y", position="Engineer", seniority="mid")
     assert "I am an Engineer" in build_template_letter(senior, OFFER, "en")
-
 
 
 class FakeMessages:
@@ -154,7 +152,6 @@ def test_ai_letter_maps_sdk_errors(monkeypatch, index):
     _install_fake(monkeypatch, error=_api_errors()[index])
     with pytest.raises(CoverLetterError):
         generate_ai_letter(CANDIDATE, OFFER, "es")
-
 
 
 @pytest.fixture()

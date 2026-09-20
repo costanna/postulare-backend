@@ -18,6 +18,7 @@ class MatchRead(BaseModel):
     job_offer: JobOfferRead
     cover_letter: str | None = None
     cover_letter_source: str | None = None
+    cover_letter_language: str | None = None
     cover_letter_at: datetime | None = None
     # Ya tienes una candidatura con esta misma oferta (misma URL o empresa + puesto)
     already_tracked: bool = False
@@ -40,6 +41,7 @@ class CoverLetterRequest(BaseModel):
 class CoverLetterRead(BaseModel):
     cover_letter: str
     source: str  # "ai" | "template"
+    language: str | None = None
     generated_at: datetime
     # Por qu� se us� la plantilla en vez de la IA: no_key | demo | user_limit | global_limit | ai_error
     template_reason: str | None = None

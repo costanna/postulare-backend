@@ -13,6 +13,7 @@ from app.core.security import (
     create_reset_token,
     decode_token,
     hash_password,
+    reset_token_matches,
     verify_password,
 )
 from app.db.session import get_db
@@ -119,7 +120,7 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
     # Respuesta genérica siempre, exista o no el email, para no filtrar qué
     # correos están registrados.
     if user:
-        reset_token = create_reset_token(str(user.id))
+        reset_token = create_reset_token(str(user.id), user.hashed_password)
         try:
             send_password_reset_email(user.email, reset_token)
         except Exception:
@@ -140,6 +141,10 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Usuario no encontrado")
+    if not reset_token_matches(payload.token, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Enlace de restablecimiento inválido o caducado"
+        )
 
     user.hashed_password = hash_password(payload.new_password)
     db.add(user)

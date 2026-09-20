@@ -19,7 +19,6 @@ def _set_profile(client, headers):
     client.patch("/profile", headers=headers, json=PROFILE)
 
 
-
 def test_get_filters_defaults_show_the_automatic_query(client, auth_headers):
     _set_profile(client, auth_headers)
 
@@ -109,7 +108,6 @@ def test_search_with_custom_keywords_works_even_with_an_empty_profile(client, au
     assert client.post("/matches/search", headers=auth_headers).status_code == 200
 
 
-
 class _Resp:
     status_code = 200
 
@@ -187,7 +185,6 @@ def test_remaining_searches_are_reported_in_filters(client, auth_headers, monkey
 def test_no_limit_reports_none(client, auth_headers, monkeypatch):
     _configure(monkeypatch, daily_limit=0)
     assert client.get("/matches/filters", headers=auth_headers).json()["daily_remaining"] is None
-
 
 
 def _register(client, n, ip=None):

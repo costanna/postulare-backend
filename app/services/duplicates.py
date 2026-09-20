@@ -21,8 +21,10 @@ def normalize(text: str | None) -> str:
 
 
 def offer_key(company: str | None, title: str | None, location: str | None = None) -> str:
-    """Clave de una oferta. Con ubicación: el mismo puesto en dos ciudades no es un duplicado."""
-    return "|".join((normalize(company), normalize(title), normalize(location)))
+    """Clave de una oferta. Con ubicación (solo la ciudad, antes de la coma, porque cada fuente
+    la escribe distinto): el mismo puesto en dos ciudades no es un duplicado."""
+    city = (location or "").split(",")[0]
+    return "|".join((normalize(company), normalize(title), normalize(city)))
 
 
 def tracked_key(company: str | None, position: str | None) -> str:

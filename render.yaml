@@ -48,6 +48,13 @@ services:
         sync: false
       - key: ADZUNA_COUNTRY
         value: es
+      # InfoJobs (opcional): segunda fuente de ofertas. Sin las dos claves solo se busca en Adzuna.
+      - key: INFOJOBS_CLIENT_ID
+        sync: false
+      - key: INFOJOBS_CLIENT_SECRET
+        sync: false
+      - key: INFOJOBS_DAILY_LIMIT
+        value: "50"
       - key: MATCH_SEARCH_COOLDOWN_MINUTES
         value: "10"
       # Protección de la cuota de Adzuna ante una demo pública (ver README):

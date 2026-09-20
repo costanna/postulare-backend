@@ -23,6 +23,7 @@ from app.services import llm_quota
 from app.services.application_status import stamp_applied_date
 from app.services.cover_letter import Candidate, Offer, build_template_letter, generate_ai_letter
 from app.services.duplicates import TrackedIndex, offer_key
+from app.services.infojobs import infojobs_enabled, search_infojobs
 from app.services.job_search import JobSearchError, build_search_query, search_job_offers
 from app.services.scoring import score_job_offer
 
@@ -104,6 +105,32 @@ def _consume_daily_quota(db: Session) -> None:
     db.commit()
 
 
+def _consume_infojobs_quota(db: Session) -> None:
+    if not llm_quota.try_consume(db, llm_quota.INFOJOBS_SCOPE, settings.INFOJOBS_DAILY_LIMIT):
+        raise JobSearchError("Se ha alcanzado el límite diario de búsquedas en InfoJobs")
+
+
+def _search_all_sources(sources: list) -> list[dict]:
+    """Junta las ofertas de todas las fuentes. Si una falla se sigue con las demás;
+    solo se devuelve error cuando fallan todas."""
+    offers: list[dict] = []
+    failures: list[Exception] = []
+    for source in sources:
+        try:
+            offers.extend(source())
+        except (JobSearchError, HTTPException) as exc:
+            if isinstance(exc, HTTPException) and exc.status_code != status.HTTP_503_SERVICE_UNAVAILABLE:
+                raise
+            failures.append(exc)
+
+    if failures and len(failures) == len(sources):
+        first = failures[0]
+        if isinstance(first, HTTPException):
+            raise first
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(first)) from first
+    return offers
+
+
 def _filters_read(user: User, filters: SearchFilters, db: Session) -> SearchFiltersRead:
     return SearchFiltersRead(
         filters=filters,
@@ -170,10 +197,11 @@ def search_matches(
             detail="Completa tu perfil (puesto deseado o skills) antes de buscar ofertas",
         )
 
-    try:
-        offers = search_job_offers(
+    location = _effective_location(current_user, filters)
+    sources = [
+        lambda: search_job_offers(
             query=query,
-            location=_effective_location(current_user, filters),
+            location=location,
             seniority=current_user.seniority,
             radius_km=filters.radius_km,
             exclude=filters.exclude,
@@ -181,8 +209,20 @@ def search_matches(
             max_days_old=filters.max_days_old,
             before_request=lambda: _consume_daily_quota(db),
         )
-    except JobSearchError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    ]
+    if infojobs_enabled():
+        sources.append(
+            lambda: search_infojobs(
+                query,
+                location,
+                current_user.seniority,
+                exclude=filters.exclude,
+                exclude_other_levels=filters.exclude_other_levels,
+                max_days_old=filters.max_days_old,
+                before_request=lambda: _consume_infojobs_quota(db),
+            )
+        )
+    offers = _search_all_sources(sources)
 
     current_user.last_match_search_at = datetime.now(timezone.utc)
     db.add(current_user)
@@ -341,6 +381,7 @@ def _letter_read(match: Match, user: User, db: Session, template_reason: str | N
     return CoverLetterRead(
         cover_letter=match.cover_letter or "",
         source=match.cover_letter_source or "template",
+        language=match.cover_letter_language,
         generated_at=match.cover_letter_at or datetime.now(timezone.utc),
         template_reason=template_reason,
         ai_available=ai_available,
@@ -411,6 +452,7 @@ def generate_cover_letter(
 
     match.cover_letter = letter
     match.cover_letter_source = source
+    match.cover_letter_language = language
     match.cover_letter_at = datetime.now(timezone.utc)
     db.add(match)
     db.commit()

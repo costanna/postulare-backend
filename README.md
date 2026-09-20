@@ -19,7 +19,7 @@ Buscar trabajo genera mucho ruido: decenas de candidaturas en hojas de cálculo,
 | | |
 |---|---|
 | **Candidaturas** | Tablero Kanban y tabla con filtros. Cada cambio de estado (guardada → enviada → entrevista → oferta…) deja rastro en una línea de tiempo. |
-| **Ofertas recomendadas** | Busca en [Adzuna](https://developer.adzuna.com/) con tu puesto y tus skills, descarta ofertas de otro nivel y repetidas, y puntúa cada una de 0 a 100. |
+| **Ofertas recomendadas** | Busca en [Adzuna](https://developer.adzuna.com/) (y en [InfoJobs](https://developer.infojobs.net/), si lo activas) con tu puesto y tus skills, descarta ofertas de otro nivel y repetidas, y puntúa cada una de 0 a 100. |
 | **Carta de presentación** | Por oferta, con IA (Claude) si está activada o con una plantilla gratuita en catalán, castellano e inglés. |
 | **Importar CV** | Sube tu CV en PDF y se rellena el perfil (puesto, ubicación, nivel, skills, resumen). El PDF no se guarda. |
 | **Seguimientos** | Avisa de las candidaturas que llevan días sin novedades. |
@@ -89,6 +89,7 @@ La lista completa y comentada está en [`.env.example`](.env.example). Nunca sub
 | `SECRET_KEY` | Sí | Firma de los JWT. Usa un valor largo y aleatorio |
 | `CORS_ORIGINS`, `FRONTEND_URL` | Sí en producción | URL del frontend, sin barra final. `FRONTEND_URL` se usa en el enlace del email de recuperar contraseña |
 | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Para buscar ofertas | Claves gratuitas de [developer.adzuna.com](https://developer.adzuna.com/) |
+| `INFOJOBS_CLIENT_ID`, `INFOJOBS_CLIENT_SECRET` | No | Activan InfoJobs como segunda fuente de ofertas (ver más abajo) |
 | `ANTHROPIC_API_KEY` | No | Activa las cartas con IA. Sin ella se usa la plantilla gratuita |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | No | Envío real del email de recuperar contraseña. Sin SMTP el enlace solo se escribe en el log |
 
@@ -98,7 +99,7 @@ La lista completa y comentada está en [`.env.example`](.env.example). Nunca sub
 pytest
 ```
 
-188 tests con SQLite en memoria: no tocan PostgreSQL, ni Alembic, ni las APIs reales (Adzuna y Anthropic se simulan).
+218 tests con SQLite en memoria: no tocan PostgreSQL, ni Alembic, ni las APIs reales (Adzuna y Anthropic se simulan).
 
 ## Despliegue: Neon + Render
 
@@ -123,7 +124,8 @@ Las variables de un servicio ya creado **no se sincronizan solas** desde `render
 | `SECRET_KEY` | Aleatoria y larga | Obligatoria. Si la cambias, se cierran todas las sesiones |
 | `CORS_ORIGINS` | `https://postulare.vercel.app` | Sin barra final |
 | `FRONTEND_URL` | `https://postulare.vercel.app` | Debe ser exacta: el email de recuperar contraseña enlaza a `FRONTEND_URL/auth/reset-password` |
-| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Tus claves de Adzuna | Sin ellas «Buscar ofertas» responde 502 |
+| `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | Tus claves de Adzuna | Sin ellas (y sin InfoJobs) «Buscar ofertas» responde 502 |
+| `INFOJOBS_CLIENT_ID`, `INFOJOBS_CLIENT_SECRET` | Tus claves de InfoJobs | **Opcional**: activa InfoJobs como segunda fuente |
 | `ANTHROPIC_API_KEY` | Tu clave de Anthropic | **Opcional**: activa las cartas con IA |
 | `ANTHROPIC_MODEL` | `claude-opus-5` (por defecto) | `claude-haiku-4-5` sale mucho más barato |
 | `LLM_DAILY_LIMIT` / `COVER_LETTER_DAILY_LIMIT_PER_USER` | `20` / `5` | Topes de gasto diarios (global y por usuario) |
@@ -133,7 +135,7 @@ Las variables de un servicio ya creado **no se sincronizan solas** desde `render
 ## Ofertas de empleo: qué APIs se pueden usar
 
 - **Adzuna** (en uso): API oficial y gratuita, agrega ofertas de muchas webs.
-- **InfoJobs**: tiene [API oficial](https://developer.infojobs.net/) (`GET /api/9/offer`) que se autentica con un Client ID y Client Secret de una app registrada en su portal de desarrolladores. Es viable como segunda fuente; requiere registrar la app y adaptar el cliente (`app/services/job_search.py`).
+- **InfoJobs** (opcional): [API oficial](https://developer.infojobs.net/) (`GET /api/9/offer`). Se activa poniendo `INFOJOBS_CLIENT_ID` y `INFOJOBS_CLIENT_SECRET`. Para conseguirlas: entra en <https://developer.infojobs.net/> con tu cuenta de InfoJobs (créala en infojobs.net si no tienes) y registra una aplicación en <https://developer.infojobs.net/app/manage-app/create.xhtml>; al crearla te da las dos claves. Los resultados se mezclan con los de Adzuna, se quitan los repetidos y tiene su propio tope diario (`INFOJOBS_DAILY_LIMIT`). Si una de las fuentes falla, la búsqueda sigue con la otra. El listado de InfoJobs no trae la descripción completa, así que la puntuación de esas ofertas se apoya en el título, el requisito mínimo y la categoría.
 - **LinkedIn**: **no** existe una API pública para buscar ofertas; su API de empleo es solo para socios que *publican* ofertas y no acepta nuevos. Hacer scraping incumple sus términos y arriesga el bloqueo de la cuenta, así que el proyecto no lo hace.
 
 ## Protección de cuotas y gasto
@@ -184,7 +186,6 @@ tests/             pytest
 
 ## Ideas para seguir
 
-- Segunda fuente de ofertas: InfoJobs.
 - Puntuación de ofertas razonada con IA (hoy es por palabras clave).
 - Recordatorios por email de los seguimientos pendientes.
 
