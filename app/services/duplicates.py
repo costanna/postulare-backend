@@ -31,12 +31,23 @@ def tracked_key(company: str | None, position: str | None) -> str:
     return f"{normalize(company)}|{normalize(position)}"
 
 
+_TRACKING_PARAMS = {"se", "v", "ref", "referrer", "source", "fbclid", "gclid", "trk", "campaign", "medium"}
+
+
 def normalize_url(url: str | None) -> str:
-    """URL sin esquema, parámetros ni barra final: dos enlaces a la misma oferta
-    suelen diferir solo en el tracking (?utm=...)."""
+    """URL sin esquema, fragmento ni barra final y sin parámetros de seguimiento (utm_*, se, v...).
+    Los demás parámetros se conservan: en muchas webs el id de la oferta va ahí (?id=123), y sin él
+    todas las ofertas de esa web parecerían la misma."""
     if not url:
         return ""
-    return re.sub(r"^https?://(www\.)?", "", url.strip().lower()).split("?")[0].split("#")[0].rstrip("/")
+    bare = re.sub(r"^https?://(www\.)?", "", url.strip().lower()).split("#")[0]
+    path, _, query = bare.partition("?")
+    kept = sorted(
+        part
+        for part in query.split("&")
+        if part and not part.startswith("utm_") and part.split("=")[0] not in _TRACKING_PARAMS
+    )
+    return path.rstrip("/") + ("?" + "&".join(kept) if kept else "")
 
 
 class TrackedIndex:

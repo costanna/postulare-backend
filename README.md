@@ -99,7 +99,7 @@ La lista completa y comentada está en [`.env.example`](.env.example). Nunca sub
 pytest
 ```
 
-237 tests con SQLite en memoria: no tocan PostgreSQL, ni Alembic, ni las APIs reales (Adzuna y Anthropic se simulan).
+240 tests con SQLite en memoria: no tocan PostgreSQL, ni Alembic, ni las APIs reales (Adzuna y Anthropic se simulan).
 
 ## Despliegue: Neon + Render
 
