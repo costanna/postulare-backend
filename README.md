@@ -116,6 +116,30 @@ Railway es la alternativa mencionada en el README raíz: no necesita
 `render.yaml` (detecta el `Dockerfile` solo), pero el mismo `DATABASE_URL`
 de Neon y las mismas variables de entorno de arriba aplican igual.
 
+## Proteger tu cuota de Adzuna (demo pública)
+
+Cada "Buscar ofertas" real consume una llamada de tu cuota gratuita de
+Adzuna. Si compartes la demo, la protegen cuatro capas, de la más fina a la
+que no se puede rodear:
+
+1. **Cooldown por usuario** (`MATCH_SEARCH_COOLDOWN_MINUTES`, 10 min).
+2. **Caché de búsquedas idénticas** (`ADZUNA_CACHE_MINUTES`, 6 h): dos
+   personas con el mismo perfil y filtros comparten una sola llamada real. Vive
+   en memoria del proceso, así que se pierde cuando Render duerme el servicio.
+3. **Límite por IP** en registro, login y recuperar contraseña
+   (`REGISTER_LIMIT_PER_HOUR`, `LOGIN_LIMIT_PER_MINUTE`, ...). Evita que un
+   script llene la base de datos de cuentas. La IP sale de `X-Forwarded-For`,
+   que un atacante decidido puede falsear: por eso hay una cuarta capa.
+4. **Tope diario global** (`ADZUNA_DAILY_LIMIT`, 50): cuenta las llamadas
+   *reales* a Adzuna de todos los usuarios juntos (tabla `adzuna_usage`). Al
+   alcanzarlo, "Buscar ofertas" responde `503` con `Retry-After` hasta el día
+   siguiente (UTC) y el resto de la app sigue funcionando. Esta es la garantía:
+   no depende de quién llame ni desde dónde. `0` = sin tope.
+
+Ajusta el tope a la cuota real de tu plan de Adzuna. En Render, las variables
+de un servicio ya creado no se actualizan solas desde `render.yaml`: cámbialas
+en el dashboard (si no, se usan los valores por defecto de arriba).
+
 ## Tests
 
 ```bash

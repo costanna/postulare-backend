@@ -50,6 +50,18 @@ services:
         value: es
       - key: MATCH_SEARCH_COOLDOWN_MINUTES
         value: "10"
+      # Protección de la cuota de Adzuna ante una demo pública (ver README):
+      # tope global de llamadas reales por día y caché de búsquedas idénticas.
+      - key: ADZUNA_DAILY_LIMIT
+        value: "50"
+      - key: ADZUNA_CACHE_MINUTES
+        value: "360"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: REGISTER_LIMIT_PER_HOUR
+        value: "10"
+      - key: LOGIN_LIMIT_PER_MINUTE
+        value: "20"
       # Vacíos = en desarrollo el enlace de recuperación se imprime en los
       # logs en vez de enviarse (ver app/services/email.py). Rellena estos
       # cuatro si quieres que los emails salgan de verdad.
