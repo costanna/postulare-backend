@@ -16,6 +16,7 @@ from app.models.enums import ApplicationStatus
 from app.models.user import User
 from app.schemas.application import ApplicationCreate, ApplicationRead, ApplicationUpdate, FollowUpRead
 from app.schemas.common import Page
+from app.services.application_status import record_status_change, stamp_applied_date
 
 # Marca de orden de bytes UTF-8: sin ella Excel abre el CSV con las tildes rotas
 _BOM = chr(0xFEFF)
@@ -81,6 +82,7 @@ def create_application(
     db: Session = Depends(get_db),
 ) -> Application:
     application = Application(user_id=current_user.id, **payload.model_dump())
+    stamp_applied_date(application)
     db.add(application)
     db.commit()
     db.refresh(application)
@@ -188,9 +190,14 @@ def update_application(
 ) -> Application:
     application = _get_owned_application(application_id, db, current_user)
 
+    previous_status = application.status
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(application, field, value)
+
+    if "applied_at" not in updates:
+        stamp_applied_date(application)
+    record_status_change(db, application, previous_status, application.status)
 
     db.add(application)
     db.commit()

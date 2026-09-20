@@ -17,9 +17,10 @@ from app.models.job_offer import JobOffer
 from app.models.match import Match
 from app.models.user import User
 from app.schemas.application import ApplicationRead
-from app.schemas.match import CoverLetterRead, CoverLetterRequest, MatchRead, MatchSearchResult
+from app.schemas.match import ConvertRequest, CoverLetterRead, CoverLetterRequest, MatchRead, MatchSearchResult
 from app.schemas.search_filters import SearchFilters, SearchFiltersRead
 from app.services import llm_quota
+from app.services.application_status import stamp_applied_date
 from app.services.cover_letter import Candidate, Offer, build_template_letter, generate_ai_letter
 from app.services.duplicates import TrackedIndex, offer_key
 from app.services.job_search import JobSearchError, build_search_query, search_job_offers
@@ -279,22 +280,27 @@ def _get_owned_match(match_id: uuid.UUID, db: Session, current_user: User) -> Ma
 @router.post("/{match_id}/convert", response_model=ApplicationRead, status_code=status.HTTP_201_CREATED)
 def convert_match(
     match_id: uuid.UUID,
+    payload: ConvertRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Application:
+    payload = payload or ConvertRequest()
     match = _get_owned_match(match_id, db, current_user)
+    if match.status == MatchStatus.converted:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta oferta ya es una candidatura")
     offer = match.job_offer
 
     application = Application(
         user_id=current_user.id,
         company_name=offer.company_name or "Empresa desconocida",
         position=offer.title,
-        status=ApplicationStatus.saved,
+        status=ApplicationStatus.applied if payload.applied else ApplicationStatus.saved,
         source=offer.source,
         salary_range=offer.salary_range,
         job_url=offer.url,
         notes=offer.description,
     )
+    stamp_applied_date(application, payload.applied_at)
     db.add(application)
 
     match.status = MatchStatus.converted

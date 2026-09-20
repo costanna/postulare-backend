@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.enums import PreferredLanguage, Seniority
 
@@ -34,6 +34,13 @@ class ProfileUpdate(BaseModel):
     min_salary: int | None = Field(default=None, ge=0)
     preferred_language: PreferredLanguage | None = None
     about: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("skills", "preferred_language")
+    @classmethod
+    def _not_null(cls, value):
+        if value is None:
+            raise ValueError("Este campo no puede ser nulo")
+        return value
 
 
 class CvImportResult(BaseModel):

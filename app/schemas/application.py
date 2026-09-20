@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import ApplicationStatus
 
@@ -28,6 +28,13 @@ class ApplicationUpdate(BaseModel):
     job_url: str | None = None
     notes: str | None = None
     applied_at: date | None = None
+
+    @field_validator("company_name", "position", "status")
+    @classmethod
+    def _not_null(cls, value):
+        if value is None:
+            raise ValueError("Este campo no puede ser nulo")
+        return value
 
 
 class ApplicationRead(BaseModel):

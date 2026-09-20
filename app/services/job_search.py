@@ -186,10 +186,10 @@ def search_job_offers(
     try:
         response = httpx.get(url, params=params, timeout=10.0)
         response.raise_for_status()
-    except httpx.HTTPError as exc:
+        payload = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
         raise JobSearchError(f"Error consultando la API de ofertas: {exc}") from exc
 
-    payload = response.json()
     offers = [_normalize_adzuna_result(item) for item in payload.get("results", [])]
     _cache_put(cache_key, offers)
     return offers
