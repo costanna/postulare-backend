@@ -138,3 +138,21 @@ def test_demo_password_cannot_be_used_to_log_in(client):
     _start_demo(client)
     email = client.get("/auth/me", headers=_headers(_start_demo(client).json())).json()["email"]
     assert client.post("/auth/login", json={"email": email, "password": "password123"}).status_code == 401
+
+
+def test_demo_offers_have_a_page_so_the_apply_button_has_something_to_open(client):
+    headers = _headers(_start_demo(client).json())
+    urls = [m["job_offer"]["url"] for m in client.get("/matches", headers=headers).json()]
+    assert len(urls) == 5 and all(url and url.startswith("https://example.com/demo/") for url in urls)
+
+
+def test_demo_offers_created_before_they_had_a_page_get_one(client, db_session):
+    from app.models.job_offer import JobOffer
+
+    _start_demo(client)
+    db_session.query(JobOffer).update({JobOffer.url: None})
+    db_session.commit()
+
+    _start_demo(client)
+
+    assert all(offer.url for offer in db_session.query(JobOffer).all())
