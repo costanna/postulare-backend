@@ -25,3 +25,13 @@ app.include_router(stats.router)
 @app.get("/health", tags=["health"])
 def health() -> dict:
     return {"status": "ok"}
+
+
+# Same handler as /health, under a second path: some ad blockers and antivirus
+# web shields treat "/health" as a tracking/telemetry beacon and silently drop
+# the request (net::ERR_BLOCKED_BY_CLIENT), which stalls the frontend's wake-up
+# ping. /health stays as-is because Render's own healthCheckPath (render.yaml)
+# points at it; the frontend pings this one instead.
+@app.get("/warmup", tags=["health"])
+def warmup() -> dict:
+    return {"status": "ok"}
