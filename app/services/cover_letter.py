@@ -212,3 +212,81 @@ def build_template_letter(candidate: Candidate, offer: Offer, language: str) -> 
 
     body = "\n\n".join(paragraphs[1:])
     return f"{paragraphs[0]}\n\n{body}\n\n{closing}"
+
+
+_SPONTANEOUS = {
+    "es": {
+        "greeting": "Hola,",
+        "intro": "Me llamo {name} y os escribo para presentar mi candidatura espontánea{at_company}.",
+        "intro_anon": "Os escribo para presentar mi candidatura espontánea{at_company}.",
+        "profile": "Soy {position}{level}{where}.",
+        "skills": "Trabajo con {skills}.",
+        "closing": "Me encantaría que tuvierais mi perfil en cuenta para futuras incorporaciones. Adjunto mi CV y quedo a vuestra disposición.",
+        "bye": "Un saludo,",
+        "at": " en {company}",
+        "in": " en {location}",
+        "levels": {"junior": " junior", "mid": "", "senior": " senior"},
+        "and": " y ",
+    },
+    "ca": {
+        "greeting": "Hola,",
+        "intro": "Em dic {name} i us escric per presentar la meva candidatura espontània{at_company}.",
+        "intro_anon": "Us escric per presentar la meva candidatura espontània{at_company}.",
+        "profile": "Soc {position}{level}{where}.",
+        "skills": "Treballo amb {skills}.",
+        "closing": "M'agradaria que tinguéssiu en compte el meu perfil per a futures incorporacions. Adjunto el meu CV i quedo a la vostra disposició.",
+        "bye": "Salutacions,",
+        "at": " a {company}",
+        "in": " a {location}",
+        "levels": {"junior": " júnior", "mid": "", "senior": " sènior"},
+        "and": " i ",
+    },
+    "en": {
+        "greeting": "Hello,",
+        "intro": "My name is {name} and I am writing to submit a spontaneous application{at_company}.",
+        "intro_anon": "I am writing to submit a spontaneous application{at_company}.",
+        "profile": "I am {article}{level_prefix} {position}{where}.",
+        "skills": "I work with {skills}.",
+        "closing": "I would love for you to keep my profile in mind for future openings. My CV is attached and I remain at your disposal.",
+        "bye": "Kind regards,",
+        "at": " at {company}",
+        "in": " based in {location}",
+        "levels": {"junior": "junior ", "mid": "", "senior": "senior "},
+        "and": " and ",
+    },
+}
+
+
+def build_spontaneous_letter(candidate: Candidate, company: str | None, language: str) -> str:
+    """Carta sin oferta concreta: para consultoras y tech que aceptan CV por email."""
+    t = _SPONTANEOUS.get(language, _SPONTANEOUS["es"])
+    name = _clean(candidate.full_name, 100)
+    at_company = t["at"].format(company=_clean(company, 150)) if company else ""
+
+    intro_key = "intro" if name else "intro_anon"
+    paragraphs = [t["greeting"], t[intro_key].format(name=name, at_company=at_company)]
+
+    position = _clean(candidate.position, 150)
+    if position:
+        level = t["levels"].get(candidate.seniority or "", "")
+        where = t["in"].format(location=_clean(candidate.location, 100)) if candidate.location else ""
+        if language == "en":
+            first_word = level.strip() or position
+            article = "an" if first_word[:1].lower() in "aeiou" else "a"
+            paragraphs.append(
+                t["profile"].format(
+                    article=article, level_prefix=f" {level.strip()}" if level else "", position=position, where=where
+                )
+            )
+        else:
+            paragraphs.append(t["profile"].format(position=position, level=level, where=where))
+
+    skills = [s for s in candidate.skills if s and s.strip()]
+    if skills:
+        paragraphs.append(t["skills"].format(skills=_join(skills[:4], t["and"])))
+
+    paragraphs.append(t["closing"])
+    closing = t["bye"] + (f"\n{name}" if name else "")
+
+    body = "\n\n".join(paragraphs[1:])
+    return f"{paragraphs[0]}\n\n{body}\n\n{closing}"

@@ -151,7 +151,13 @@ Ninguna API gratuita permite pulsar «aplicar» en el portal ajeno: solo devuelv
 
 **Idioma adaptado a cada empresa:** el kit detecta el idioma de la oferta (catalán, castellano o inglés) y genera en ese idioma la carta, el asunto y cuerpo del email, las etiquetas del CV y la checklist; si no se detecta, usa tu idioma preferido. Tu contenido (resumen, skills) no se traduce: solo las plantillas de Postulare. En el frontend, el botón **«Enviar CV»** muestra el kit con copiar y **«Abrir en mi email»** (mailto con todo listo).
 
-**Envío directo por email** (`POST /matches/{id}/send-email`): si la oferta trae email de contacto, lo envía desde tu SMTP (p. ej. tu Gmail con contraseña de aplicación) en el idioma de la oferta y con el CV adjunto, dejando la candidatura como «aplicada». **Solo cuentas reales**: la demo responde 403 (y el botón «Enviar ahora» ni aparece). Tope diario por usuario (`SEND_EMAIL_DAILY_LIMIT_PER_USER`, 10).
+**Envío directo por email** (`POST /matches/{id}/send-email`): si la oferta trae email de contacto, lo envía desde tu SMTP (p. ej. tu Gmail con contraseña de aplicación) en el idioma de la oferta y con el CV adjunto, dejando la candidatura como «aplicada». **Solo cuentas reales**: la demo responde 403 (y el botón «Enviar ahora» ni aparece).
+
+**Límites anti-spam (ofertas + espontáneas):** 5 envíos/día a empresas distintas y 15 días antes de reenviar a la misma empresa (`Acme SL` = `ACME S.A.`). Ver `POST /targets/*`.
+
+**Mis CV por idioma** (`GET/PUT /profile/cvs/{es,ca,en}`): pega tu CV en cada idioma desde el perfil; al enviar se adjunta tal cual si la oferta va en ese idioma, o se genera uno si lo dejas vacío.
+
+**Candidaturas espontáneas** (`/targets`): directorio propio de consultoras y tech (nombre + email + idioma), envío individual o en bloque (`POST /targets/send-bulk`), con carta espontánea en su idioma. Cada envío crea su candidatura «aplicada» y respeta los mismos límites.
 
 El clic final en el portal es manual (y debe serlo: el auto-apply con bots viola los TOS).
 

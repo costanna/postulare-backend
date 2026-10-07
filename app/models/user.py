@@ -45,3 +45,6 @@ class User(Base):
 
     applications: Mapped[list["Application"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     matches: Mapped[list["Match"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    cvs: Mapped[list["UserCv"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    targets: Mapped[list["TargetCompany"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    email_sends: Mapped[list["EmailSend"]] = relationship(back_populates="user", cascade="all, delete-orphan")

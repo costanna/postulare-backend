@@ -124,17 +124,36 @@ def build_mailto_link(subject: str, body: str, to: str | None = None) -> str:
     return f"mailto:{recipient}?subject={quote(subject)}&body={quote(body[:1500])}"
 
 
+_SPONTANEOUS_SUBJECT = {
+    "es": "Candidatura espontánea",
+    "ca": "Candidatura espontània",
+    "en": "Spontaneous application",
+}
+
+
+def build_spontaneous_subject(position: str | None, full_name: str | None, language: str = "es") -> str:
+    word = _SPONTANEOUS_SUBJECT[_lang(language)]
+    position = (position or "").strip() or _EMAIL[_lang(language)]["fallback_title"]
+    if full_name and full_name.strip():
+        return f"{word}: {position} — {full_name.strip()}"
+    return f"{word}: {position}"
+
+
 def build_checklist(offer_url: str | None, language: str = "es") -> list[str]:
     steps = _CHECKLIST[_lang(language)]
     tail = steps[3] if offer_url else steps[4]
     return [steps[0], steps[1], steps[2], tail]
 
 
-def build_apply_pack(user: User, offer: dict, cover_letter: str, language: str) -> dict:
+def build_apply_pack(user: User, offer: dict, cover_letter: str, language: str, saved_cv: str | None = None) -> dict:
     language = _lang(language)
     detected = detect_language(offer.get("title"), offer.get("description"))
-    cv = cv_data_for_user(user)
-    cv_markdown = render_cv_markdown(cv, language)
+    if saved_cv and saved_cv.strip():
+        cv_markdown = saved_cv.strip()
+        cv_source = "saved"
+    else:
+        cv_markdown = render_cv_markdown(cv_data_for_user(user), language)
+        cv_source = "generated"
     subject = build_email_subject(offer.get("title"), user.full_name, language)
     body = build_email_body(cover_letter, cv_markdown, offer.get("url"), language)
     contact_email = extract_contact_email(offer.get("description"), offer.get("title"))
@@ -145,6 +164,7 @@ def build_apply_pack(user: User, offer: dict, cover_letter: str, language: str) 
         "detected_language": detected,
         "contact_email": contact_email,
         "cv_markdown": cv_markdown,
+        "cv_source": cv_source,
         "email_subject": subject,
         "email_body": body,
         "mailto_link": build_mailto_link(subject, body, contact_email),

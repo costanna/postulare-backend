@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.routers import applications, auth, events, matches, profile, stats
+from app.routers.outreach import cv_router, router as outreach_router
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
@@ -20,6 +21,8 @@ app.include_router(applications.router)
 app.include_router(events.router)
 app.include_router(matches.router)
 app.include_router(stats.router)
+app.include_router(outreach_router)
+app.include_router(cv_router)
 
 
 @app.api_route("/health", methods=["GET", "HEAD"], tags=["health"])

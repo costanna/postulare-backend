@@ -39,6 +39,7 @@ from app.services.apply_pack import (
     extract_contact_email,
     resolve_pack_language,
 )
+from app.services.companies import check_send_allowed, record_email_send, user_cv_for_language
 from app.services.cv_document import render_cv_text
 from app.services.cv_mailer import MailerError, send_application_email, smtp_configured
 from app.services.cover_letter import Candidate, Offer, build_template_letter, generate_ai_letter
@@ -532,13 +533,14 @@ def _pack_language(user: User, offer: dict, saved_language: str | None) -> str:
     return language
 
 
-def _pack_for_match(match: Match, user: User) -> ApplyPackRead:
+def _pack_for_match(match: Match, user: User, db: Session) -> ApplyPackRead:
     offer = _offer_dict(match.job_offer)
     language = _pack_language(user, offer, match.cover_letter_language)
     letter = match.cover_letter
     if not letter:
         letter = ensure_template_letter(user, offer, language)
-    pack = build_apply_pack(user, offer, letter, language)
+    saved_cv = user_cv_for_language(db, user.id, language)
+    pack = build_apply_pack(user, offer, letter, language, saved_cv)
     return ApplyPackRead(**pack)
 
 
@@ -579,7 +581,7 @@ def get_apply_pack(
 ) -> ApplyPackRead:
     """Kit listo para enviar sin convertir: carta + CV + email + checklist."""
     match = _get_owned_match(match_id, db, current_user)
-    return _pack_for_match(match, current_user)
+    return _pack_for_match(match, current_user, db)
 
 
 @router.post("/{match_id}/auto-apply", response_model=AutoApplyRead, status_code=status.HTTP_201_CREATED)
@@ -595,7 +597,7 @@ def auto_apply_match(
     db.commit()
     db.refresh(application)
     db.refresh(match)
-    return AutoApplyRead(application=application, pack=_pack_for_match(match, current_user))
+    return AutoApplyRead(application=application, pack=_pack_for_match(match, current_user, db))
 
 
 @router.post("/auto-apply-bulk", response_model=BulkAutoApplyRead, status_code=status.HTTP_201_CREATED)
@@ -619,7 +621,7 @@ def auto_apply_bulk(
         application = _convert_match_to_applied(match, current_user, db)
         db.flush()
         db.refresh(application)
-        converted.append(AutoApplyRead(application=application, pack=_pack_for_match(match, current_user)))
+        converted.append(AutoApplyRead(application=application, pack=_pack_for_match(match, current_user, db)))
     db.commit()
     return BulkAutoApplyRead(converted=converted, skipped=0)
 
@@ -631,7 +633,10 @@ def send_match_email(
     db: Session = Depends(get_db),
 ) -> SendEmailRead:
     """Envía la candidatura al email de contacto de la oferta, en su idioma,
-    con el CV adjunto. Solo cuentas reales: las demo responden 403."""
+    con tu CV (guardado o generado) adjunto. Solo cuentas reales.
+
+    Límites: 5 envíos/día a empresas distintas y 15 días entre envíos a la
+    misma empresa (normalizando SL/S.A./etc.)."""
     if current_user.is_demo:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -641,6 +646,7 @@ def send_match_email(
     if match.status == MatchStatus.converted:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta oferta ya es una candidatura")
     offer = _offer_dict(match.job_offer)
+    company = offer.get("company_name") or "Empresa desconocida"
     contact = extract_contact_email(offer.get("description"), offer.get("title"))
     if not contact:
         raise HTTPException(
@@ -652,28 +658,38 @@ def send_match_email(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Envío no configurado en el servidor (SMTP).",
         )
-    scope = f"send-email:{current_user.id}"
-    if not llm_quota.try_consume(db, scope, settings.SEND_EMAIL_DAILY_LIMIT_PER_USER):
+    allowed, reason = check_send_allowed(db, current_user.id, company)
+    if not allowed:
+        if reason == "daily_limit":
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Tope diario alcanzado ({settings.SEND_EMAIL_DAILY_LIMIT_PER_USER}/día). Vuelve mañana.",
+            )
+        waiting = reason.split(":")[1] if ":" in reason else "?"
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Has llegado al tope diario de envíos.",
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Ya escribiste a {company} hace poco: espera {waiting} días para reenviar.",
         )
     language = _pack_language(current_user, offer, match.cover_letter_language)
     letter = match.cover_letter or ensure_template_letter(current_user, offer, language)
-    pack = build_apply_pack(current_user, offer, letter, language)
+    saved_cv = user_cv_for_language(db, current_user.id, language)
+    pack = build_apply_pack(current_user, offer, letter, language, saved_cv)
+    attachment = saved_cv or render_cv_text(cv_data_for_user(current_user), language)
     cv_filename = f"CV-{(current_user.full_name or 'candidatura').strip()}.txt"
     try:
-        send_application_email(
-            contact,
-            pack["email_subject"],
-            pack["email_body"],
-            render_cv_text(cv_data_for_user(current_user), language),
-            cv_filename,
-        )
+        send_application_email(contact, pack["email_subject"], pack["email_body"], attachment, cv_filename)
     except MailerError as exc:
-        llm_quota.release(db, scope)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
+    record_email_send(
+        db,
+        user_id=current_user.id,
+        company_name=company,
+        contact_email=contact,
+        language=language,
+        kind="offer",
+        match_id=match.id,
+    )
     application = _convert_match_to_applied(match, current_user, db)
     db.commit()
     db.refresh(application)
@@ -684,4 +700,5 @@ def send_match_email(
         subject=pack["email_subject"],
         language=pack["language"],
         detected_language=pack["detected_language"],
+        cv_source=pack["cv_source"],
     )
