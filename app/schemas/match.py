@@ -65,6 +65,8 @@ class ApplyPackRead(BaseModel):
     language: str | None = None
     # Idioma detectado en la oferta (None = no se detectó, se usó el preferido)
     detected_language: str | None = None
+    # Email de contacto extraído de la oferta (None = la oferta no lo trae)
+    contact_email: str | None = None
     cv_markdown: str
     email_subject: str
     email_body: str

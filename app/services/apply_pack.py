@@ -21,7 +21,27 @@ from app.services.cover_letter import Candidate, Offer, build_template_letter
 from app.services.cv_document import CvData, render_cv_markdown
 from app.services.lang_detect import detect_language
 
+import re
+
 SUPPORTED_PACK_LANGUAGES = ("es", "ca", "en")
+
+# Email de contacto dentro del texto de la oferta ("envíanos tu CV a...").
+# Se excluyen ejemplos y no-responder: no son destinatarios reales.
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
+_EMAIL_BLOCKLIST = ("example.com", "example.org", "example.net", "email.com", "noreply", "no-reply", "donotreply")
+
+
+def extract_contact_email(*texts: str | None) -> str | None:
+    """Primer email con pinta de contacto en los textos, o None si no hay."""
+    for text in texts:
+        if not text:
+            continue
+        for match in _EMAIL_RE.findall(text):
+            lowered = match.lower()
+            if any(blocked in lowered for blocked in _EMAIL_BLOCKLIST):
+                continue
+            return match.rstrip(".,;:!?()")
+    return None
 
 _EMAIL = {
     "es": {"subject_word": "Candidatura", "fallback_title": "Candidatura", "offer": "Oferta"},
@@ -87,8 +107,9 @@ def build_email_body(
     return "\n\n".join(parts)
 
 
-def build_mailto_link(subject: str, body: str) -> str:
-    return f"mailto:?subject={quote(subject)}&body={quote(body[:1500])}"
+def build_mailto_link(subject: str, body: str, to: str | None = None) -> str:
+    recipient = quote(to, safe="@") if to else ""
+    return f"mailto:{recipient}?subject={quote(subject)}&body={quote(body[:1500])}"
 
 
 def build_checklist(offer_url: str | None, language: str = "es") -> list[str]:
@@ -112,15 +133,17 @@ def build_apply_pack(user: User, offer: dict, cover_letter: str, language: str) 
     cv_markdown = render_cv_markdown(cv, language)
     subject = build_email_subject(offer.get("title"), user.full_name, language)
     body = build_email_body(cover_letter, cv_markdown, offer.get("url"), language)
+    contact_email = extract_contact_email(offer.get("description"), offer.get("title"))
     return {
         "cover_letter": cover_letter,
         "cover_letter_source": "template",
         "language": language,
         "detected_language": detected,
+        "contact_email": contact_email,
         "cv_markdown": cv_markdown,
         "email_subject": subject,
         "email_body": body,
-        "mailto_link": build_mailto_link(subject, body),
+        "mailto_link": build_mailto_link(subject, body, contact_email),
         "offer_url": offer.get("url"),
         "checklist": build_checklist(offer.get("url"), language),
     }

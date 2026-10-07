@@ -88,3 +88,54 @@ def test_pack_falls_back_to_user_language(client, auth_headers, monkeypatch):
     pack = client.get(f"/matches/{match_id}/apply-pack", headers=auth_headers).json()
     assert pack["detected_language"] is None
     assert pack["language"] == "es"
+
+
+def _pack_for_offer(client, auth_headers, monkeypatch, offer):
+    import app.routers.matches as matches_router
+    from tests.test_matches import _set_profile
+
+    _set_profile(client, auth_headers)
+    monkeypatch.setattr(matches_router, "search_job_offers", lambda query, location=None, **kw: [offer])
+    client.post("/matches/search", headers=auth_headers)
+    match_id = client.get("/matches", headers=auth_headers).json()[0]["id"]
+    return client.get(f"/matches/{match_id}/apply-pack", headers=auth_headers).json()
+
+
+def test_pack_extracts_contact_email_from_description(client, auth_headers, monkeypatch):
+    pack = _pack_for_offer(
+        client,
+        auth_headers,
+        monkeypatch,
+        {
+            "source": "eures",
+            "external_id": "mail-1",
+            "title": "Camarero",
+            "company_name": "Bar",
+            "location": "Barcelona",
+            "description": "Buscamos camarero con experiencia. Envía tu CV a empleo@empresa.com.",
+            "salary_range": None,
+            "url": "https://example.com/mail",
+        },
+    )
+    assert pack["contact_email"] == "empleo@empresa.com"
+    assert pack["mailto_link"].startswith("mailto:empleo@empresa.com?")
+
+
+def test_pack_without_contact_email_leaves_recipient_empty(client, auth_headers, monkeypatch):
+    pack = _pack_for_offer(
+        client,
+        auth_headers,
+        monkeypatch,
+        {
+            "source": "adzuna",
+            "external_id": "mail-2",
+            "title": "Python Developer",
+            "company_name": "Tech",
+            "location": "Barcelona",
+            "description": "Python FastAPI SQL. Escríbenos a noreply@empresa.com.",
+            "salary_range": None,
+            "url": "https://example.com/nomail",
+        },
+    )
+    assert pack["contact_email"] is None
+    assert pack["mailto_link"].startswith("mailto:?")
