@@ -8,9 +8,34 @@ from app.deps import get_current_user
 from app.models.enums import Seniority
 from app.models.user import User
 from app.schemas.user import CvImportResult, ProfileUpdate, UserRead
+from app.services.cv_document import CvData, render_cv_html, render_cv_markdown, render_cv_text
 from app.services.cv_parser import CvParseError, parse_cv_pdf
 
 router = APIRouter(prefix="/profile", tags=["profile"])
+
+
+@router.get("/cv-document")
+def get_cv_document(
+    format: str = "markdown", lang: str = "es", current_user: User = Depends(get_current_user)
+) -> dict:
+    """CV generado en local desde el perfil. Gratis, sin guardar nada.
+    format: markdown | text | html. lang: es | ca | en (etiquetas)."""
+    if lang not in ("es", "ca", "en"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="lang debe ser es, ca o en")
+    cv = CvData(
+        full_name=current_user.full_name,
+        desired_position=current_user.desired_position,
+        location=current_user.location,
+        seniority=current_user.seniority.value if current_user.seniority else None,
+        skills=list(current_user.skills or []),
+        about=current_user.about,
+        email=current_user.email,
+    )
+    if format == "text":
+        return {"format": "text", "content": render_cv_text(cv, lang)}
+    if format == "html":
+        return {"format": "html", "content": render_cv_html(cv, lang)}
+    return {"format": "markdown", "content": render_cv_markdown(cv, lang)}
 
 
 @router.get("", response_model=UserRead)

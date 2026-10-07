@@ -55,6 +55,14 @@ services:
         sync: false
       - key: INFOJOBS_DAILY_LIMIT
         value: "50"
+      - key: FREE_BOARDS_ENABLED
+        value: "true"
+      - key: FREE_BOARDS_MAX_RESULTS
+        value: "20"
+      - key: EURES_ENABLED
+        value: "true"
+      - key: EURES_MAX_RESULTS
+        value: "20"
       - key: MATCH_SEARCH_COOLDOWN_MINUTES
         value: "10"
       # Protección de la cuota de Adzuna ante una demo pública (ver README):

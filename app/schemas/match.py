@@ -4,6 +4,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.models.enums import MatchStatus, PreferredLanguage
+from app.schemas.application import ApplicationRead
 from app.schemas.job_offer import JobOfferRead
 
 
@@ -56,3 +57,35 @@ class ConvertRequest(BaseModel):
     applied: bool = False
     # Fecha local de la usuaria; si no llega, se usa la de hoy (UTC)
     applied_at: date | None = None
+
+
+class ApplyPackRead(BaseModel):
+    cover_letter: str
+    cover_letter_source: str = "template"
+    language: str | None = None
+    # Idioma detectado en la oferta (None = no se detectó, se usó el preferido)
+    detected_language: str | None = None
+    cv_markdown: str
+    email_subject: str
+    email_body: str
+    mailto_link: str
+    offer_url: str | None = None
+    checklist: list[str] = []
+
+
+class AutoApplyRead(BaseModel):
+    application: ApplicationRead
+    pack: ApplyPackRead
+    # Aviso honesto: Postulare deja todo listo, pero el clic final en el
+    # portal es manual (ninguna API gratuita permite aplicar por ti).
+    needs_manual_step: bool = True
+
+
+class BulkAutoApplyRequest(BaseModel):
+    min_score: int = 60
+    limit: int = 5
+
+
+class BulkAutoApplyRead(BaseModel):
+    converted: list[AutoApplyRead]
+    skipped: int = 0

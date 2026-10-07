@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     INFOJOBS_CLIENT_SECRET: str = ""
     INFOJOBS_DAILY_LIMIT: int = 50
 
+    # Fuentes gratuitas sin clave (Remotive, RemoteOK, Arbeitnow). Sin cuota:
+    # son feeds públicos y se cachean igual que Adzuna.
+    FREE_BOARDS_ENABLED: bool = True
+    FREE_BOARDS_MAX_RESULTS: int = 20
+
+    # EURES (portal europeo de empleo, filtro España): gratis, sin clave.
+    # Incluye ofertas de Empléate/SEPE. Sin tope diario, solo caché interna.
+    EURES_ENABLED: bool = True
+    EURES_MAX_RESULTS: int = 20
+
     # IA (opcional): cartas de presentación con Claude. Sin clave, o al agotar los
     # topes, se usa una plantilla sin IA (gratis) - la función nunca deja de responder.
     ANTHROPIC_API_KEY: str = ""

@@ -22,7 +22,7 @@ app.include_router(matches.router)
 app.include_router(stats.router)
 
 
-@app.get("/health", tags=["health"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["health"])
 def health() -> dict:
     return {"status": "ok"}
 
@@ -32,6 +32,6 @@ def health() -> dict:
 # the request (net::ERR_BLOCKED_BY_CLIENT), which stalls the frontend's wake-up
 # ping. /health stays as-is because Render's own healthCheckPath (render.yaml)
 # points at it; the frontend pings this one instead.
-@app.get("/warmup", tags=["health"])
+@app.api_route("/warmup", methods=["GET", "HEAD"], tags=["health"])
 def warmup() -> dict:
     return {"status": "ok"}

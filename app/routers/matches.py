@@ -17,12 +17,25 @@ from app.models.job_offer import JobOffer
 from app.models.match import Match
 from app.models.user import User
 from app.schemas.application import ApplicationRead
-from app.schemas.match import ConvertRequest, CoverLetterRead, CoverLetterRequest, MatchRead, MatchSearchResult
+from app.schemas.match import (
+    ApplyPackRead,
+    AutoApplyRead,
+    BulkAutoApplyRead,
+    BulkAutoApplyRequest,
+    ConvertRequest,
+    CoverLetterRead,
+    CoverLetterRequest,
+    MatchRead,
+    MatchSearchResult,
+)
 from app.schemas.search_filters import SearchFilters, SearchFiltersRead
 from app.services import llm_quota
 from app.services.application_status import stamp_applied_date
+from app.services.apply_pack import build_apply_pack, ensure_template_letter, resolve_pack_language
 from app.services.cover_letter import Candidate, Offer, build_template_letter, generate_ai_letter
 from app.services.duplicates import TrackedIndex, offer_key
+from app.services.eures import eures_enabled, is_spain_location, search_eures
+from app.services.free_boards import free_boards_enabled, search_free_boards
 from app.services.infojobs import infojobs_enabled, search_infojobs
 from app.services.job_search import (
     JobSearchError,
@@ -228,6 +241,25 @@ def search_matches(
                 exclude_other_levels=filters.exclude_other_levels,
                 max_days_old=filters.max_days_old,
                 before_request=lambda: _consume_infojobs_quota(db),
+            )
+        )
+    if free_boards_enabled():
+        # Gratis y sin clave: Remotive + RemoteOK + Arbeitnow. Sin tope diario,
+        # solo caché interna; si fallan, la búsqueda sigue con las demás.
+        # Solo tienen sentido para remoto o sin ubicación concreta.
+        if filters.work_mode in ("remote", "hybrid") or not location:
+            sources.append(lambda: search_free_boards(query, max_results=settings.FREE_BOARDS_MAX_RESULTS))
+    if eures_enabled() and is_spain_location(location):
+        # EURES filtra por España en el servidor (incluye Empléate/SEPE).
+        # Gratis, sin clave ni tope; si falla, la búsqueda sigue con las demás.
+        sources.append(
+            lambda: search_eures(
+                query,
+                current_user.seniority,
+                exclude=filters.exclude,
+                exclude_other_levels=filters.exclude_other_levels,
+                max_days_old=filters.max_days_old,
+                max_results=settings.EURES_MAX_RESULTS,
             )
         )
     offers = filter_by_work_mode(
@@ -468,3 +500,116 @@ def generate_cover_letter(
     db.commit()
     db.refresh(match)
     return _letter_read(match, current_user, db, template_reason=reason)
+
+
+def _offer_dict(offer: JobOffer) -> dict:
+    return {
+        "title": offer.title,
+        "company_name": offer.company_name,
+        "location": offer.location,
+        "description": offer.description,
+        "salary_range": offer.salary_range,
+        "url": offer.url,
+        "source": offer.source,
+    }
+
+
+def _pack_language(user: User, offer: dict, saved_language: str | None) -> str:
+    """Idioma del kit: el de la carta guardada, si no el detectado en la oferta,
+    si no el preferido del usuario."""
+    if saved_language:
+        return saved_language
+    language, _ = resolve_pack_language(user, offer)
+    return language
+
+
+def _pack_for_match(match: Match, user: User) -> ApplyPackRead:
+    offer = _offer_dict(match.job_offer)
+    language = _pack_language(user, offer, match.cover_letter_language)
+    letter = match.cover_letter
+    if not letter:
+        letter = ensure_template_letter(user, offer, language)
+    pack = build_apply_pack(user, offer, letter, language)
+    return ApplyPackRead(**pack)
+
+
+def _convert_match_to_applied(match: Match, user: User, db: Session) -> Application:
+    if match.status == MatchStatus.converted:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta oferta ya es una candidatura")
+    offer = match.job_offer
+    application = Application(
+        user_id=user.id,
+        company_name=offer.company_name or "Empresa desconocida",
+        position=offer.title,
+        status=ApplicationStatus.applied,
+        source=offer.source,
+        salary_range=offer.salary_range,
+        job_url=offer.url,
+        notes=offer.description,
+    )
+    stamp_applied_date(application, None)
+    db.add(application)
+    match.status = MatchStatus.converted
+    # Guarda la carta plantilla si aún no hay ninguna: gratis y sin IA, en el
+    # idioma de la oferta (o el preferido del usuario si no se detecta).
+    if not match.cover_letter:
+        language = _pack_language(user, _offer_dict(offer), None)
+        match.cover_letter = ensure_template_letter(user, _offer_dict(offer), language)
+        match.cover_letter_source = "template"
+        match.cover_letter_language = language
+        match.cover_letter_at = datetime.now(timezone.utc)
+    db.add(match)
+    return application
+
+
+@router.get("/{match_id}/apply-pack", response_model=ApplyPackRead)
+def get_apply_pack(
+    match_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ApplyPackRead:
+    """Kit listo para enviar sin convertir: carta + CV + email + checklist."""
+    match = _get_owned_match(match_id, db, current_user)
+    return _pack_for_match(match, current_user)
+
+
+@router.post("/{match_id}/auto-apply", response_model=AutoApplyRead, status_code=status.HTTP_201_CREATED)
+def auto_apply_match(
+    match_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AutoApplyRead:
+    """Automatización gratuita: convierte a «aplicada», genera la carta plantilla
+    y devuelve el kit de envío. El clic final en el portal es manual."""
+    match = _get_owned_match(match_id, db, current_user)
+    application = _convert_match_to_applied(match, current_user, db)
+    db.commit()
+    db.refresh(application)
+    db.refresh(match)
+    return AutoApplyRead(application=application, pack=_pack_for_match(match, current_user))
+
+
+@router.post("/auto-apply-bulk", response_model=BulkAutoApplyRead, status_code=status.HTTP_201_CREATED)
+def auto_apply_bulk(
+    payload: BulkAutoApplyRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> BulkAutoApplyRead:
+    """Convierte de golpe las mejores ofertas nuevas (por score). Límite 20 por llamada."""
+    options = payload or BulkAutoApplyRequest()
+    limit = max(1, min(options.limit, 20))
+    candidates = (
+        db.query(Match)
+        .filter(Match.user_id == current_user.id, Match.status == MatchStatus.new, Match.score >= options.min_score)
+        .order_by(Match.score.desc())
+        .limit(limit)
+        .all()
+    )
+    converted: list[AutoApplyRead] = []
+    for match in candidates:
+        application = _convert_match_to_applied(match, current_user, db)
+        db.flush()
+        db.refresh(application)
+        converted.append(AutoApplyRead(application=application, pack=_pack_for_match(match, current_user)))
+    db.commit()
+    return BulkAutoApplyRead(converted=converted, skipped=0)

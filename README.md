@@ -135,8 +135,23 @@ Las variables de un servicio ya creado **no se sincronizan solas** desde `render
 ## Ofertas de empleo: qué APIs se pueden usar
 
 - **Adzuna** (en uso): API oficial y gratuita, agrega ofertas de muchas webs.
-- **InfoJobs** (opcional): [API oficial](https://developer.infojobs.net/) (`GET /api/9/offer`). Se activa poniendo `INFOJOBS_CLIENT_ID` y `INFOJOBS_CLIENT_SECRET`. Para conseguirlas: entra en <https://developer.infojobs.net/> con tu cuenta de InfoJobs (créala en infojobs.net si no tienes) y registra una aplicación en <https://developer.infojobs.net/app/manage-app/create.xhtml>; al crearla te da las dos claves. Los resultados se mezclan con los de Adzuna, se quitan los repetidos y tiene su propio tope diario (`INFOJOBS_DAILY_LIMIT`). Si una de las fuentes falla, la búsqueda sigue con la otra. El listado de InfoJobs no trae la descripción completa, así que la puntuación de esas ofertas se apoya en el título, el requisito mínimo y la categoría.
+- **InfoJobs** (opcional): [API oficial](https://developer.infojobs.net/) (`GET /api/9/offer`). Se activa poniendo `INFOJOBS_CLIENT_ID` y `INFOJOBS_CLIENT_SECRET`. Para conseguirlas: entra en <https://developer.infojobs.net/> con tu cuenta de InfoJobs (créala en infojobs.net si no tienes) y registra una aplicación en <https://developer.infojobs.net/app/manage-app/create.xhtml>; al crearla te da las dos claves. **Ojo: el registro de apps nuevas está cerrado temporalmente** («The registration of new apps is currently unavailable»): mientras dure, EURES-España cubre las ofertas nacionales sin clave. Los resultados se mezclan con los de Adzuna, se quitan los repetidos y tiene su propio tope diario (`INFOJOBS_DAILY_LIMIT`). Si una de las fuentes falla, la búsqueda sigue con la otra. El listado de InfoJobs no trae la descripción completa, así que la puntuación de esas ofertas se apoya en el título, el requisito mínimo y la categoría.
+- **Fuentes gratuitas sin clave** (`FREE_BOARDS_ENABLED=true`): Remotive, RemoteOK y Arbeitnow. Solo remoto/Europa, se usan cuando el filtro es remoto/híbrido o no hay ubicación. Sin cuota ni registro.
+- **EURES-España** (`EURES_ENABLED=true`): portal europeo de empleo con filtro `locationCodes=["es"]`, gratis y sin clave. Cubre ofertas de toda España e incluye las de Empléate/SEPE. Se usa cuando la ubicación es España o no hay ubicación; con ubicación extranjera se omite.
 - **LinkedIn**: **no** existe una API pública para buscar ofertas; su API de empleo es solo para socios que *publican* ofertas y no acepta nuevos. Hacer scraping incumple sus términos y arriesga el bloqueo de la cuenta, así que el proyecto no lo hace.
+
+## Automatización gratuita del envío
+
+Ninguna API gratuita permite pulsar «aplicar» en el portal ajeno: solo devuelven la URL. Postulare automatiza todo lo demás, gratis y en local:
+
+- `GET /matches/{id}/apply-pack`: carta plantilla + CV en markdown + asunto/cuerpo de email + `mailto:` + checklist.
+- `POST /matches/{id}/auto-apply`: convierte a «aplicada» (con fecha de hoy), genera la carta plantilla si falta y devuelve el kit.
+- `POST /matches/auto-apply-bulk` (`{min_score, limit}`): convierte de golpe las mejores nuevas.
+- `GET /profile/cv-document?format=markdown|text|html&lang=es|ca|en`: CV generado desde el perfil para pegar o imprimir a PDF.
+
+**Idioma adaptado a cada empresa:** el kit detecta el idioma de la oferta (catalán, castellano o inglés) y genera en ese idioma la carta, el asunto y cuerpo del email, las etiquetas del CV y la checklist; si no se detecta, usa tu idioma preferido. Tu contenido (resumen, skills) no se traduce: solo las plantillas de Postulare. En el frontend, el botón **«Enviar CV»** muestra el kit con copiar y **«Abrir en mi email»** (mailto con todo listo).
+
+El clic final en el portal es manual (y debe serlo: el auto-apply con bots viola los TOS).
 
 ## Protección de cuotas y gasto
 

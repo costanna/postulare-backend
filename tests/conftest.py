@@ -26,6 +26,10 @@ def _isolate_global_state(monkeypatch):
     clear_search_cache()
     reset_rate_limits()
     monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
+    # Las fuentes gratuitas hacen HTTP real: desactivadas por defecto en tests.
+    # Los tests que las quieran las activan y simulan con monkeypatch.
+    monkeypatch.setattr(settings, "FREE_BOARDS_ENABLED", False)
+    monkeypatch.setattr(settings, "EURES_ENABLED", False)
     yield
     clear_search_cache()
     reset_rate_limits()
