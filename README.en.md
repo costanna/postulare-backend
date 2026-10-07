@@ -168,9 +168,9 @@ No free API lets you press "apply" on someone else's portal: they only return th
 
 **My CVs per language** (`GET/PUT /profile/cvs/{es,ca,en}`, `POST .../file`, `DELETE .../file`): paste your CV or **upload the PDF** in each language from the profile. The original PDF is stored and attached as-is when sending (with the extracted text for display/pasting); pasting text afterwards replaces the PDF. Without PDF or text, one is generated from your profile.
 
-**Spontaneous applications** (`/targets`): your own directory of consultancies and tech companies (name + email + language + tags), single or bulk sending (`POST /targets/send-bulk`), with a spontaneous letter in their language. Each send creates its "applied" application and respects the same limits.
+**Spontaneous applications** (`/targets`): your own directory of consultancies and tech companies (name + email + language + tags), with a letter preview before sending (`GET /targets/{id}/preview`), single editable or bulk sending (`POST /targets/send-bulk`), with a spontaneous letter in their language. Each send creates its "applied" application and respects the same limits.
 
-**Autopilot** (`POST /targets/autopilot`): sends up to 5 with no offers involved, only to companies whose tags match your CV (tags vs skills/position, with visible score), skipping those contacted less than 30 days ago. Paused and resumed with `PATCH /profile {auto_outreach_paused}` (button on the page).
+**Autopilot** (`POST /targets/autopilot`, preview at `POST /targets/autopilot/preview`): sends up to 5 with no offers involved, only to companies whose tags match your CV (tags vs skills/position, with visible score), skipping those contacted less than 30 days ago. The page shows the letters before confirming. Paused and resumed with `PATCH /profile {auto_outreach_paused}` (button on the page).
 
 **Discovery without adding by hand** (`GET /targets/suggestions`, `POST /targets/import`): companies with real emails aggregated from your offers + the monthly "Ask HN: Who is hiring?" thread (Spain/remote filter and your skills). The autopilot imports them on its own (`include_suggestions`, on by default); the page lists them under "Auto-discovered" to add by hand if you prefer.
 

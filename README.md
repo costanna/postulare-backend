@@ -159,9 +159,9 @@ Ninguna API gratuita permite pulsar «aplicar» en el portal ajeno: solo devuelv
 
 **Mis CV por idioma** (`GET/PUT /profile/cvs/{es,ca,en}`, `POST .../file`, `DELETE .../file`): pega tu CV o **sube el PDF** en cada idioma desde el perfil. El PDF original se guarda y se adjunta tal cual al enviar (con el texto extraído para mostrar/pegar); si pegas texto después, sustituye al PDF. Sin PDF ni texto, se genera uno desde tu perfil.
 
-**Candidaturas espontáneas** (`/targets`): directorio propio de consultoras y tech (nombre + email + idioma + etiquetas), envío individual o en bloque (`POST /targets/send-bulk`), con carta espontánea en su idioma. Cada envío crea su candidatura «aplicada» y respeta los mismos límites.
+**Candidaturas espontáneas** (`/targets`): directorio propio de consultoras y tech (nombre + email + idioma + etiquetas), con vista previa de la carta antes de enviar (`GET /targets/{id}/preview`), envío individual editable o en bloque (`POST /targets/send-bulk`), con carta espontánea en su idioma. Cada envío crea su candidatura «aplicada» y respeta los mismos límites.
 
-**Piloto automático** (`POST /targets/autopilot`): envía hasta 5 sin ofertas de por medio, solo a empresas cuyas etiquetas encajan con tu CV (tags vs skills/puesto, con puntuación visible), saltando las contactadas hace menos de 30 días. Se paraliza y reanuda con `PATCH /profile {auto_outreach_paused}` (botón en la página).
+**Piloto automático** (`POST /targets/autopilot`, vista previa en `POST /targets/autopilot/preview`): envía hasta 5 sin ofertas de por medio, solo a empresas cuyas etiquetas encajan con tu CV (tags vs skills/puesto, con puntuación visible), saltando las contactadas hace menos de 30 días. La página muestra las cartas antes de confirmar. Se paraliza y reanuda con `PATCH /profile {auto_outreach_paused}` (botón en la página).
 
 **Descubrimiento sin añadir a mano** (`GET /targets/suggestions`, `POST /targets/import`): empresas con email real agregadas de tus ofertas + hilo mensual «Ask HN: Who is hiring?» (filtrado España/remoto y por tus skills). El piloto las importa solo (`include_suggestions`, por defecto sí); en la página salen en «Descubiertas solas» para añadirlas a mano si prefieres.
 

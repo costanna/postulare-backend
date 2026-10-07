@@ -269,3 +269,29 @@ def test_autopilot_needs_smtp(client, auth_headers, monkeypatch):
     _target(client, auth_headers, tags=["python"])
     monkeypatch.setattr(settings, "SMTP_HOST", "")
     assert client.post("/targets/autopilot", headers=auth_headers, json={}).status_code == 503
+
+
+def test_preview_shows_letter_without_sending(client, auth_headers, _fake_smtp):
+    _skilled_profile(client, auth_headers)
+    target = _target(client, auth_headers, language="es", tags=["python"])
+    preview = client.get(f"/targets/{target['id']}/preview", headers=auth_headers).json()
+    assert "candidatura espontánea" in preview["cover_letter"]
+    assert preview["subject"].startswith("Candidatura espontánea:")
+    assert preview["target"]["id"] == target["id"]
+    # Nada enviado ni creado.
+    assert _fake_smtp == []
+    assert client.get("/applications", headers=auth_headers).json()["total"] == 0
+
+
+def test_autopilot_preview_lists_without_sending(client, auth_headers, _fake_smtp):
+    _skilled_profile(client, auth_headers)
+    _target(client, auth_headers, name="Python SL", email="p@x.example", tags=["python"])
+    body = client.post("/targets/autopilot/preview", headers=auth_headers, json={}).json()
+    assert len(body) == 1 and "candidatura espontánea" in body[0]["cover_letter"]
+    assert _fake_smtp == []
+
+
+def test_preview_demo_is_forbidden(client):
+    tokens = client.post("/auth/demo").json()
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    assert client.get("/targets/00000000-0000-0000-0000-000000000000/preview", headers=headers).status_code == 403

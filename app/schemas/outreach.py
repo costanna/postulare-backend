@@ -71,7 +71,6 @@ class BulkSendRead(BaseModel):
     sent: list[TargetSendResult]
     daily_remaining: int | None = None
 
-
 class SpontaneousSendRead(BaseModel):
     application: ApplicationRead
     target: TargetRead
@@ -84,6 +83,14 @@ class SpontaneousSendRead(BaseModel):
 class TargetSendRequest(BaseModel):
     # Carta editada por el usuario: si llega (no vacía), se envía esa.
     cover_letter: str | None = Field(default=None, max_length=3000)
+
+
+class TargetPreviewRead(BaseModel):
+    target: TargetRead
+    subject: str
+    cover_letter: str
+    language: str
+    cv_source: str = "generated"
 
 
 class AutopilotRequest(BaseModel):

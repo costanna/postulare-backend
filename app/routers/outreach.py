@@ -28,6 +28,7 @@ from app.schemas.outreach import (
     SuggestionRead,
     SuggestionsRead,
     TargetCreate,
+    TargetPreviewRead,
     TargetRead,
     TargetSendRequest,
     TargetSendResult,
@@ -199,6 +200,31 @@ def delete_target(
     db.commit()
 
 
+def _candidate_for(user: User) -> Candidate:
+    return Candidate(
+        full_name=user.full_name,
+        position=user.desired_position,
+        seniority=user.seniority.value if user.seniority else None,
+        location=user.location,
+        skills=list(user.skills or []),
+        about=user.about,
+    )
+
+
+def _preview_for(db: Session, user: User, target: TargetCompany) -> TargetPreviewRead:
+    """Lo que se enviaría, sin enviar nada ni crear candidatura."""
+    language = target.language if target.language in CV_LANGUAGES else "es"
+    letter = build_spontaneous_letter(_candidate_for(user), target.name, language)
+    display, _, _, cv_source = cv_for_sending(db, user, language)
+    return TargetPreviewRead(
+        target=_to_read(db, user, target),
+        subject=build_spontaneous_subject(user.desired_position, user.full_name, language),
+        cover_letter=letter,
+        language=language,
+        cv_source=cv_source,
+    )
+
+
 def _send_to_target(
     db: Session, user: User, target: TargetCompany, edited_letter: str | None = None
 ) -> tuple[Application, str, str, str, str]:
@@ -221,14 +247,7 @@ def _send_to_target(
             detail="Envío no configurado en el servidor (SMTP).",
         )
     language = target.language if target.language in CV_LANGUAGES else "es"
-    candidate = Candidate(
-        full_name=user.full_name,
-        position=user.desired_position,
-        seniority=user.seniority.value if user.seniority else None,
-        location=user.location,
-        skills=list(user.skills or []),
-        about=user.about,
-    )
+    candidate = _candidate_for(user)
     letter = (edited_letter or "").strip() or build_spontaneous_letter(candidate, target.name, language)
     display, pdf_bytes, pdf_name, cv_source = cv_for_sending(db, user, language)
     subject = build_spontaneous_subject(user.desired_position, user.full_name, language)
@@ -401,6 +420,49 @@ def import_suggestions(
     return ImportRead(imported=imported, skipped=skipped)
 
 
+@router.get("/{target_id}/preview", response_model=TargetPreviewRead)
+def preview_target(
+    target_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TargetPreviewRead:
+    """Muestra lo que se enviaría (asunto, carta, CV usado) sin enviar nada."""
+    _forbid_demo(current_user)
+    return _preview_for(db, current_user, _get_owned_target(target_id, db, current_user))
+
+
+@router.post("/autopilot/preview", response_model=list[TargetPreviewRead])
+def preview_autopilot(
+    payload: AutopilotRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[TargetPreviewRead]:
+    """Las hasta 5 que enviaría el piloto, en orden, sin enviar nada."""
+    _forbid_demo(current_user)
+    if current_user.auto_outreach_paused:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Automatización paralizada: reactívala para usar el piloto.",
+        )
+    options = payload or AutopilotRequest()
+    return [_preview_for(db, current_user, target) for _, _, target in _rank_targets(db, current_user, options.limit)]
+
+
+def _rank_targets(db: Session, user: User, limit: int) -> list[tuple[int, str, TargetCompany]]:
+    """Candidatas del piloto en orden (encaje con tu CV, sin las de <30 días)."""
+    skills = list(user.skills or [])
+    ranked = []
+    for target in db.query(TargetCompany).filter(TargetCompany.user_id == user.id).all():
+        score = score_target(skills, user.desired_position, list(target.tags or []))
+        if score <= 0:
+            continue
+        if days_until_retry(db, user.id, target.name, settings.SPONTANEOUS_RESEND_DAYS) > 0:
+            continue
+        ranked.append((score, target.name.lower(), target))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    return ranked[: max(1, min(limit, 5))]
+
+
 @router.post("/autopilot", response_model=AutopilotRead, status_code=status.HTTP_201_CREATED)
 def run_autopilot(
     payload: AutopilotRequest | None = None,
@@ -425,21 +487,10 @@ def run_autopilot(
         )
     if options.include_suggestions:
         _import_suggestions(db, current_user, _offer_suggestions(db, current_user) + _hn_suggestions(current_user))
-    skills = list(current_user.skills or [])
-    ranked = []
-    for target in (
-        db.query(TargetCompany).filter(TargetCompany.user_id == current_user.id).all()
-    ):
-        score = score_target(skills, current_user.desired_position, list(target.tags or []))
-        if score <= 0:
-            continue
-        if days_until_retry(db, current_user.id, target.name, settings.SPONTANEOUS_RESEND_DAYS) > 0:
-            continue
-        ranked.append((score, target.name.lower(), target))
-    ranked.sort(key=lambda item: (-item[0], item[1]))
+    ranked = _rank_targets(db, current_user, options.limit)
 
     results: list[TargetSendResult] = []
-    for _, _, target in ranked[: options.limit]:
+    for _, _, target in ranked:
         try:
             _, sent_to, _, _, _ = _send_to_target(db, current_user, target)
             results.append(TargetSendResult(target_id=target.id, ok=True, sent_to=sent_to))
@@ -447,7 +498,7 @@ def run_autopilot(
             if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
                 break
             results.append(TargetSendResult(target_id=target.id, ok=False, error=str(exc.detail)))
-    skipped = len(ranked[: options.limit]) - len(results)
+    skipped = len(ranked) - len(results)
     remaining = settings.SEND_EMAIL_DAILY_LIMIT_PER_USER - sends_today(db, current_user.id)
     return AutopilotRead(sent=results, skipped=skipped, daily_remaining=max(0, remaining))
 
