@@ -17,6 +17,7 @@ copiar/pegar): el backend no tiene credenciales de correo de nadie.
 from urllib.parse import quote
 
 from app.models.user import User
+from app.services.ats import ats_block, matched_keywords
 from app.services.cover_letter import Candidate, Offer, build_template_letter
 from app.services.cv_document import CvData, render_cv_markdown
 from app.services.lang_detect import detect_language
@@ -110,10 +111,18 @@ def build_email_subject(position: str | None, full_name: str | None, language: s
 
 
 def build_email_body(
-    cover_letter: str, cv_markdown: str, offer_url: str | None, language: str = "es"
+    cover_letter: str,
+    cv_markdown: str,
+    offer_url: str | None,
+    language: str = "es",
+    *,
+    ats_lines: list[str] | None = None,
 ) -> str:
     t = _EMAIL[_lang(language)]
-    parts = [cover_letter.strip(), "---", cv_markdown.strip()]
+    parts = [cover_letter.strip()]
+    if ats_lines:
+        parts.extend(line for line in ats_lines if line and line.strip())
+    parts += ["---", cv_markdown.strip()]
     if offer_url:
         parts.append(f"{t['offer']}: {offer_url}")
     return "\n\n".join(parts)
@@ -155,7 +164,19 @@ def build_apply_pack(user: User, offer: dict, cover_letter: str, language: str, 
         cv_markdown = render_cv_markdown(cv_data_for_user(user), language)
         cv_source = "generated"
     subject = build_email_subject(offer.get("title"), user.full_name, language)
-    body = build_email_body(cover_letter, cv_markdown, offer.get("url"), language)
+    keywords = matched_keywords(
+        offer.get("title"), offer.get("description"), list(user.skills or [])
+    )
+    ats_lines = ats_block(
+        user.desired_position,
+        user.seniority.value if user.seniority else None,
+        user.location,
+        offer.get("title"),
+        offer.get("company_name"),
+        keywords,
+        language,
+    )
+    body = build_email_body(cover_letter, cv_markdown, offer.get("url"), language, ats_lines=ats_lines)
     contact_email = extract_contact_email(offer.get("description"), offer.get("title"))
     return {
         "cover_letter": cover_letter,

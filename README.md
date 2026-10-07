@@ -151,6 +151,8 @@ Ninguna API gratuita permite pulsar «aplicar» en el portal ajeno: solo devuelv
 
 **Idioma adaptado a cada empresa:** el kit detecta el idioma de la oferta (catalán, castellano o inglés) y genera en ese idioma la carta, el asunto y cuerpo del email, las etiquetas del CV y la checklist; si no se detecta, usa tu idioma preferido. Tu contenido (resumen, skills) no se traduce: solo las plantillas de Postulare. En el frontend, el botón **«Enviar CV»** muestra el kit con copiar y **«Abrir en mi email»** (mailto con todo listo).
 
+**Email anti-ATS:** el cuerpo es texto plano (lo que mejor parsean) con línea `Re: {puesto} — {empresa}`, línea de `Coincidencias clave:` con tus skills reales mencionadas en la oferta (nunca inventadas, por orden de aparición, máx. 12) y línea `Perfil:`. El asunto lleva el título exacto de la oferta.
+
 **Envío directo por email** (`POST /matches/{id}/send-email`): si la oferta trae email de contacto, lo envía desde tu SMTP (p. ej. tu Gmail con contraseña de aplicación) en el idioma de la oferta y con el CV adjunto, dejando la candidatura como «aplicada». **Solo cuentas reales**: la demo responde 403 (y el botón «Enviar ahora» ni aparece).
 
 **Límites anti-spam (ofertas + espontáneas):** 5 envíos/día a empresas distintas y 15 días antes de reenviar a la misma empresa (`Acme SL` = `ACME S.A.`). Ver `POST /targets/*`.
