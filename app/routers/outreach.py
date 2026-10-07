@@ -39,8 +39,8 @@ from app.services.application_status import stamp_applied_date
 from app.services.apply_pack import (
     build_email_body,
     build_spontaneous_subject,
-    extract_contact_email,
 )
+from app.services.emails import extract_contact_email
 from app.services.ats import matched_keywords
 from app.services.companies import (
     check_send_allowed,

@@ -18,31 +18,13 @@ from urllib.parse import quote
 
 from app.models.user import User
 from app.services.ats import ats_block, matched_keywords
+from app.services.company_lookup import discover_company_email
 from app.services.cover_letter import Candidate, Offer, build_template_letter
 from app.services.cv_document import CvData, render_cv_markdown
+from app.services.emails import extract_contact_email
 from app.services.lang_detect import detect_language
 
-import re
-
 SUPPORTED_PACK_LANGUAGES = ("es", "ca", "en")
-
-# Email de contacto dentro del texto de la oferta ("envíanos tu CV a...").
-# Se excluyen ejemplos y no-responder: no son destinatarios reales.
-_EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
-_EMAIL_BLOCKLIST = ("example.com", "example.org", "example.net", "email.com", "noreply", "no-reply", "donotreply")
-
-
-def extract_contact_email(*texts: str | None) -> str | None:
-    """Primer email con pinta de contacto en los textos, o None si no hay."""
-    for text in texts:
-        if not text:
-            continue
-        for match in _EMAIL_RE.findall(text):
-            lowered = match.lower()
-            if any(blocked in lowered for blocked in _EMAIL_BLOCKLIST):
-                continue
-            return match.rstrip(".,;:!?()")
-    return None
 
 _EMAIL = {
     "es": {"subject_word": "Candidatura", "fallback_title": "Candidatura", "offer": "Oferta"},
@@ -161,6 +143,7 @@ def build_apply_pack(
     language: str,
     saved_cv: str | None = None,
     cv_source: str | None = None,
+    discover: bool = True,
 ) -> dict:
     language = _lang(language)
     detected = detect_language(offer.get("title"), offer.get("description"))
@@ -184,13 +167,20 @@ def build_apply_pack(
         language,
     )
     body = build_email_body(cover_letter, cv_markdown, offer.get("url"), language, ats_lines=ats_lines)
-    contact_email = extract_contact_email(offer.get("description"), offer.get("title"))
+    if discover:
+        contact_email, contact_source = discover_company_email(
+            offer.get("company_name"), offer.get("title"), offer.get("description")
+        )
+    else:
+        contact_email = extract_contact_email(offer.get("description"), offer.get("title"))
+        contact_source = "offer" if contact_email else None
     return {
         "cover_letter": cover_letter,
         "cover_letter_source": "template",
         "language": language,
         "detected_language": detected,
         "contact_email": contact_email,
+        "contact_source": contact_source,
         "cv_markdown": cv_markdown,
         "cv_source": source,
         "email_subject": subject,

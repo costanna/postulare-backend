@@ -36,7 +36,6 @@ from app.services.application_status import stamp_applied_date
 from app.services.apply_pack import (
     build_apply_pack,
     ensure_template_letter,
-    extract_contact_email,
     resolve_pack_language,
 )
 from app.services.companies import (
@@ -45,6 +44,7 @@ from app.services.companies import (
     record_email_send,
 )
 from app.services.cv_mailer import MailerError, send_application_email, smtp_configured
+from app.services.company_lookup import discover_company_email
 from app.services.cover_letter import Candidate, Offer, build_template_letter, generate_ai_letter
 from app.services.duplicates import TrackedIndex, offer_key
 from app.services.eures import eures_enabled, is_spain_location, search_eures
@@ -652,11 +652,11 @@ def send_match_email(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta oferta ya es una candidatura")
     offer = _offer_dict(match.job_offer)
     company = offer.get("company_name") or "Empresa desconocida"
-    contact = extract_contact_email(offer.get("description"), offer.get("title"))
+    contact, _contact_source = discover_company_email(company, offer.get("title"), offer.get("description"))
     if not contact:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Esta oferta no trae email de contacto: usa «Enviar CV» para copiar el kit.",
+            detail="No se encontró email de contacto (ni en la oferta ni en la web de la empresa).",
         )
     if not smtp_configured():
         raise HTTPException(
@@ -711,4 +711,5 @@ def send_match_email(
         language=pack["language"],
         detected_language=pack["detected_language"],
         cv_source=pack["cv_source"],
+        contact_source=pack["contact_source"],
     )

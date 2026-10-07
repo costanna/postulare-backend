@@ -165,6 +165,8 @@ Ninguna API gratuita permite pulsar «aplicar» en el portal ajeno: solo devuelv
 
 **Descubrimiento sin añadir a mano** (`GET /targets/suggestions`, `POST /targets/import`): empresas con email real agregadas de tus ofertas + hilo mensual «Ask HN: Who is hiring?» (filtrado España/remoto y por tus skills). El piloto las importa solo (`include_suggestions`, por defecto sí); en la página salen en «Descubiertas solas» para añadirlas a mano si prefieres.
 
+**Email desde el nombre de la empresa:** al ver una oferta sin email, se busca el dominio (Clearbit, sin clave) y se rastrean su home y contacto para buzones del propio dominio (`jobs@`, `rrhh@`...). Solo dominios propios, con caché; el kit indica si el email salió de la oferta o de la web.
+
 El clic final en el portal es manual (y debe serlo: el auto-apply con bots viola los TOS).
 
 ## Protección de cuotas y gasto

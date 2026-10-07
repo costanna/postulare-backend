@@ -67,6 +67,8 @@ class ApplyPackRead(BaseModel):
     detected_language: str | None = None
     # Email de contacto extraído de la oferta (None = la oferta no lo trae)
     contact_email: str | None = None
+    # "offer" (en la oferta) | "website" (web de la empresa) | None
+    contact_source: str | None = None
     # "saved" = tu CV guardado en ese idioma; "generated" = generado del perfil
     cv_source: str = "generated"
     cv_markdown: str
@@ -102,6 +104,8 @@ class SendEmailRead(BaseModel):
     language: str | None = None
     detected_language: str | None = None
     cv_source: str = "generated"
+    # "offer" (en la oferta) | "website" (web de la empresa) | None
+    contact_source: str | None = None
 
 
 class SendEmailRequest(BaseModel):

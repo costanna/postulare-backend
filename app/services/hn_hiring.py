@@ -16,7 +16,8 @@ import re
 import httpx
 
 from app.core.config import settings
-from app.services.apply_pack import extract_contact_email
+from app.services.duplicates import normalize
+from app.services.emails import extract_contact_email
 from app.services.eures import is_spain_location
 from app.services.job_search import JobSearchError, _cache_get, _cache_put
 from app.services.lang_detect import detect_language
