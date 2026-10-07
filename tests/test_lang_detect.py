@@ -139,3 +139,32 @@ def test_pack_without_contact_email_leaves_recipient_empty(client, auth_headers,
     )
     assert pack["contact_email"] is None
     assert pack["mailto_link"].startswith("mailto:?")
+
+
+def test_preview_rebuilds_pack_with_edited_letter(client, auth_headers, monkeypatch):
+    import app.routers.matches as matches_router
+    from tests.test_matches import _set_profile
+
+    _set_profile(client, auth_headers)
+    offer = {
+        "source": "eures",
+        "external_id": "prev-1",
+        "title": "Camarero con experiencia",
+        "company_name": "Bar",
+        "location": "Barcelona",
+        "description": "Buscamos camarero con experiencia.",
+        "salary_range": None,
+        "url": "https://example.com/prev",
+    }
+    monkeypatch.setattr(matches_router, "search_job_offers", lambda query, location=None, **kw: [offer])
+    client.post("/matches/search", headers=auth_headers)
+    match_id = client.get("/matches", headers=auth_headers).json()[0]["id"]
+
+    preview = client.post(
+        f"/matches/{match_id}/apply-pack", headers=auth_headers, json={"cover_letter": "Mi versión editada"}
+    ).json()
+    assert "Mi versión editada" in preview["email_body"]
+    assert "Mi%20versi" in preview["mailto_link"]
+    # No guarda ni convierte: la carta del match sigue vacía y sigue como nuevo.
+    stored = client.get("/matches", headers=auth_headers).json()[0]
+    assert stored["cover_letter"] is None and stored["status"] == "new"

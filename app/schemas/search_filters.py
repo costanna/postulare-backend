@@ -26,6 +26,9 @@ class SearchFilters(BaseModel):
     disability: Literal["any", "require", "exclude"] = "any"
     # Modalidad: "remote"/"hybrid" piden que la oferta lo diga; "onsite" incluye las que no dicen nada.
     work_mode: Literal["any", "remote", "hybrid", "onsite"] = "any"
+    # Solo España: descarta ofertas con ubicación concreta fuera de España.
+    # Las remotas o sin ubicación se conservan (no se puede demostrar lo contrario).
+    spain_only: bool = False
     # Oculta en el listado las ofertas con puntuación menor. Solo afecta a la vista.
     min_score: int = Field(default=0, ge=0, le=100)
 

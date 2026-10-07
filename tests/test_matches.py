@@ -113,6 +113,38 @@ def test_dismiss_match(client, auth_headers, monkeypatch):
     assert response.json()["status"] == "dismissed"
 
 
+def test_bulk_convert_saves_many_and_skips_converted(client, auth_headers, monkeypatch):
+    import app.routers.matches as matches_router
+    from tests.test_matches import FAKE_OFFERS, _set_profile
+
+    _set_profile(client, auth_headers)
+    monkeypatch.setattr(matches_router, "search_job_offers", lambda query, location=None, **kw: FAKE_OFFERS)
+    client.post("/matches/search", headers=auth_headers)
+    ids = [m["id"] for m in client.get("/matches", headers=auth_headers).json()]
+
+    body = client.post("/matches/convert-bulk", headers=auth_headers, json={"match_ids": ids}).json()
+    assert len(body["converted"]) == 2 and body["skipped"] == 0
+    assert all(a["status"] == "saved" for a in body["converted"])
+
+    again = client.post("/matches/convert-bulk", headers=auth_headers, json={"match_ids": ids}).json()
+    assert again["converted"] == [] and again["skipped"] == 2
+
+
+def test_bulk_convert_skips_foreign_matches(client, auth_headers, monkeypatch):
+    import app.routers.matches as matches_router
+    from tests.conftest import register_and_login
+    from tests.test_matches import FAKE_OFFERS, _set_profile
+
+    _set_profile(client, auth_headers)
+    monkeypatch.setattr(matches_router, "search_job_offers", lambda query, location=None, **kw: FAKE_OFFERS)
+    client.post("/matches/search", headers=auth_headers)
+    foreign_id = client.get("/matches", headers=auth_headers).json()[0]["id"]
+
+    other = register_and_login(client, email="other@example.com")
+    body = client.post("/matches/convert-bulk", headers=other, json={"match_ids": [foreign_id]}).json()
+    assert body == {"converted": [], "skipped": 1}
+
+
 def test_user_cannot_convert_another_users_match(client, auth_headers, monkeypatch):
     _set_profile(client, auth_headers)
     monkeypatch.setattr(matches_router, "search_job_offers", lambda query, location=None, **kwargs: FAKE_OFFERS)

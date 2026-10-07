@@ -97,6 +97,15 @@ class BulkAutoApplyRead(BaseModel):
     skipped: int = 0
 
 
+class BulkConvertRequest(BaseModel):
+    match_ids: list[uuid.UUID] = Field(max_length=20)
+
+
+class BulkConvertRead(BaseModel):
+    converted: list[ApplicationRead]
+    skipped: int = 0
+
+
 class SendEmailRead(BaseModel):
     application: ApplicationRead
     sent_to: str

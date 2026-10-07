@@ -47,6 +47,62 @@ def test_normalize_unknown_nuts_falls_back_to_spain():
     assert offer["location"] == "España"
 
 
+def test_spain_only_keeps_spain_remote_and_empty():
+    from app.services.eures import filter_spain_only
+
+    offers = [
+        {"location": "Barcelona, España"},
+        {"location": "Cataluña, España"},
+        {"location": "Remoto"},
+        {"location": None},
+        {"location": "Berlin, Alemania"},
+        {"location": "London, UK"},
+    ]
+    kept = filter_spain_only(offers)
+    assert [o["location"] for o in kept] == ["Barcelona, España", "Cataluña, España", "Remoto", None]
+
+
+def test_search_applies_spain_only_filter(client, auth_headers, monkeypatch):
+    import app.routers.matches as matches_router
+    from tests.test_matches import _set_profile
+
+    offers = [
+        {
+            "source": "adzuna",
+            "external_id": "sp-es",
+            "title": "Python Developer",
+            "company_name": "Nórdica",
+            "location": "Barcelona, España",
+            "description": "Python.",
+            "salary_range": None,
+            "url": "https://example.com/sp-es",
+        },
+        {
+            "source": "adzuna",
+            "external_id": "sp-de",
+            "title": "Python Developer",
+            "company_name": "Berlinesa",
+            "location": "Berlin, Alemania",
+            "description": "Python.",
+            "salary_range": None,
+            "url": "https://example.com/sp-de",
+        },
+    ]
+    _set_profile(client, auth_headers)
+    client.put("/matches/filters", headers=auth_headers, json={"keywords": "python"})
+    monkeypatch.setattr(matches_router, "search_job_offers", lambda query, location=None, **kw: offers)
+    monkeypatch.setattr(matches_router, "search_eures", lambda query, seniority=None, **kw: [])
+    assert client.post("/matches/search", headers=auth_headers).status_code == 200
+    assert len(client.get("/matches", headers=auth_headers).json()) == 2
+
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "MATCH_SEARCH_COOLDOWN_MINUTES", 0)
+    client.put("/matches/filters", headers=auth_headers, json={"keywords": "python", "spain_only": True})
+    second = client.post("/matches/search", headers=auth_headers)
+    assert second.status_code == 200
+    assert second.json()["fetched"] == 1
+
 @pytest.mark.parametrize(
     "location,expected",
     [

@@ -135,6 +135,12 @@ def is_spain_location(location: str | None) -> bool:
     return any(marker in folded for marker in _SPAIN_MARKERS)
 
 
+def filter_spain_only(offers: list[dict]) -> list[dict]:
+    """Modo estricto solo-España: quita ofertas con ubicación concreta fuera.
+    Las remotas o sin ubicación se conservan."""
+    return [offer for offer in offers if is_spain_location(offer.get("location"))]
+
+
 def _region_label(location_map: dict | None) -> str | None:
     if not isinstance(location_map, dict):
         return None

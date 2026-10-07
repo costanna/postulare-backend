@@ -144,9 +144,9 @@ Las variables de un servicio ya creado **no se sincronizan solas** desde `render
 
 Ninguna API gratuita permite pulsar «aplicar» en el portal ajeno: solo devuelven la URL. Postulare automatiza todo lo demás, gratis y en local:
 
-- `GET /matches/{id}/apply-pack`: carta plantilla + CV en markdown + asunto/cuerpo de email + `mailto:` + checklist.
+- `GET /matches/{id}/apply-pack`: carta plantilla + CV en markdown + asunto/cuerpo de email + `mailto:` + checklist. `POST` al mismo path reconstruye el kit con tu carta editada (para el mailto y los copiados, sin guardar).
 - `POST /matches/{id}/auto-apply`: convierte a «aplicada» (con fecha de hoy), genera la carta plantilla si falta y devuelve el kit.
-- `POST /matches/auto-apply-bulk` (`{min_score, limit}`): convierte de golpe las mejores nuevas.
+- `POST /matches/convert-bulk` (`{match_ids}`, máx. 20): guarda varias ofertas como candidaturas de golpe.
 - `GET /profile/cv-document?format=markdown|text|html&lang=es|ca|en`: CV generado desde el perfil para pegar o imprimir a PDF.
 
 **Idioma adaptado a cada empresa:** el kit detecta el idioma de la oferta (catalán, castellano o inglés) y genera en ese idioma la carta, el asunto y cuerpo del email, las etiquetas del CV y la checklist; si no se detecta, usa tu idioma preferido. Tu contenido (resumen, skills) no se traduce: solo las plantillas de Postulare. En el frontend, el botón **«Enviar CV»** muestra el kit con copiar y **«Abrir en mi email»** (mailto con todo listo).

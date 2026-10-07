@@ -22,6 +22,8 @@ from app.schemas.match import (
     AutoApplyRead,
     BulkAutoApplyRead,
     BulkAutoApplyRequest,
+    BulkConvertRead,
+    BulkConvertRequest,
     ConvertRequest,
     CoverLetterRead,
     CoverLetterRequest,
@@ -47,7 +49,7 @@ from app.services.cv_mailer import MailerError, send_application_email, smtp_con
 from app.services.company_lookup import discover_company_email
 from app.services.cover_letter import Candidate, Offer, build_template_letter, generate_ai_letter
 from app.services.duplicates import TrackedIndex, offer_key
-from app.services.eures import eures_enabled, is_spain_location, search_eures
+from app.services.eures import eures_enabled, filter_spain_only, is_spain_location, search_eures
 from app.services.free_boards import free_boards_enabled, search_free_boards
 from app.services.infojobs import infojobs_enabled, search_infojobs
 from app.services.job_search import (
@@ -278,6 +280,8 @@ def search_matches(
     offers = filter_by_work_mode(
         filter_by_disability(_search_all_sources(sources), filters.disability), filters.work_mode
     )
+    if filters.spain_only:
+        offers = filter_spain_only(offers)
 
     current_user.last_match_search_at = datetime.now(timezone.utc)
     db.add(current_user)
@@ -385,25 +389,62 @@ def convert_match(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta oferta ya es una candidatura")
     offer = match.job_offer
 
+    application = _do_convert(match, offer, current_user, payload.applied, payload.applied_at, db)
+    db.commit()
+    db.refresh(application)
+    return application
+
+
+def _do_convert(
+    match: Match,
+    offer: JobOffer,
+    user: User,
+    applied: bool,
+    applied_at: date | None,
+    db: Session,
+) -> Application:
     application = Application(
-        user_id=current_user.id,
+        user_id=user.id,
         company_name=offer.company_name or "Empresa desconocida",
         position=offer.title,
-        status=ApplicationStatus.applied if payload.applied else ApplicationStatus.saved,
+        status=ApplicationStatus.applied if applied else ApplicationStatus.saved,
         source=offer.source,
         salary_range=offer.salary_range,
         job_url=offer.url,
         notes=offer.description,
     )
-    stamp_applied_date(application, payload.applied_at)
+    stamp_applied_date(application, applied_at)
     db.add(application)
 
     match.status = MatchStatus.converted
     db.add(match)
-
-    db.commit()
-    db.refresh(application)
     return application
+
+
+@router.post("/convert-bulk", response_model=BulkConvertRead, status_code=status.HTTP_201_CREATED)
+def convert_bulk(
+    payload: BulkConvertRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> BulkConvertRead:
+    """Guarda de golpe varias ofertas como candidaturas (estado guardada)."""
+    converted: list[Application] = []
+    skipped = 0
+    for match_id in payload.match_ids[:20]:
+        match = (
+            db.query(Match)
+            .filter(Match.id == match_id, Match.user_id == current_user.id)
+            .first()
+        )
+        if match is None or match.status == MatchStatus.converted:
+            skipped += 1
+            continue
+        converted.append(_do_convert(match, match.job_offer, current_user, False, None, db))
+        db.flush()
+    db.commit()
+    for application in converted:
+        db.refresh(application)
+    return BulkConvertRead(converted=converted, skipped=skipped)
 
 
 @router.post("/{match_id}/dismiss", response_model=MatchRead)
@@ -585,6 +626,24 @@ def get_apply_pack(
     """Kit listo para enviar sin convertir: carta + CV + email + checklist."""
     match = _get_owned_match(match_id, db, current_user)
     return _pack_for_match(match, current_user, db)
+
+
+@router.post("/{match_id}/apply-pack", response_model=ApplyPackRead)
+def preview_apply_pack(
+    match_id: uuid.UUID,
+    payload: SendEmailRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ApplyPackRead:
+    """Reconstruye el kit con la carta editada (mailto y copiados la usan).
+    No guarda ni convierte nada."""
+    match = _get_owned_match(match_id, db, current_user)
+    offer = _offer_dict(match.job_offer)
+    language = _pack_language(current_user, offer, match.cover_letter_language)
+    edited = ((payload.cover_letter if payload else None) or "").strip()
+    letter = edited or match.cover_letter or ensure_template_letter(current_user, offer, language)
+    display, _, _, source = cv_for_sending(db, current_user, language)
+    return ApplyPackRead(**build_apply_pack(current_user, offer, letter, language, display, source))
 
 
 @router.post("/{match_id}/auto-apply", response_model=AutoApplyRead, status_code=status.HTTP_201_CREATED)
