@@ -588,7 +588,9 @@ def _pack_for_match(match: Match, user: User, db: Session) -> ApplyPackRead:
     return ApplyPackRead(**pack)
 
 
-def _convert_match_to_applied(match: Match, user: User, db: Session) -> Application:
+def _convert_match(
+    match: Match, user: User, db: Session, applied: bool, applied_at: date | None = None
+) -> Application:
     if match.status == MatchStatus.converted:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta oferta ya es una candidatura")
     offer = match.job_offer
@@ -596,13 +598,13 @@ def _convert_match_to_applied(match: Match, user: User, db: Session) -> Applicat
         user_id=user.id,
         company_name=offer.company_name or "Empresa desconocida",
         position=offer.title,
-        status=ApplicationStatus.applied,
+        status=ApplicationStatus.applied if applied else ApplicationStatus.saved,
         source=offer.source,
         salary_range=offer.salary_range,
         job_url=offer.url,
         notes=offer.description,
     )
-    stamp_applied_date(application, None)
+    stamp_applied_date(application, applied_at)
     db.add(application)
     match.status = MatchStatus.converted
     # Guarda la carta plantilla si aún no hay ninguna: gratis y sin IA, en el
@@ -649,13 +651,16 @@ def preview_apply_pack(
 @router.post("/{match_id}/auto-apply", response_model=AutoApplyRead, status_code=status.HTTP_201_CREATED)
 def auto_apply_match(
     match_id: uuid.UUID,
+    payload: ConvertRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AutoApplyRead:
-    """Automatización gratuita: convierte a «aplicada», genera la carta plantilla
-    y devuelve el kit de envío. El clic final en el portal es manual."""
+    """Prepara la candidatura (guardada, o aplicada si `applied: true`) con la
+    carta y el kit. Solo marca «aplicada» cuando la usuaria lo confirma o el
+    email se ha enviado de verdad: nunca por defecto."""
+    options = payload or ConvertRequest()
     match = _get_owned_match(match_id, db, current_user)
-    application = _convert_match_to_applied(match, current_user, db)
+    application = _convert_match(match, current_user, db, options.applied, options.applied_at)
     db.commit()
     db.refresh(application)
     db.refresh(match)
@@ -668,7 +673,8 @@ def auto_apply_bulk(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> BulkAutoApplyRead:
-    """Convierte de golpe las mejores ofertas nuevas (por score). Límite 20 por llamada."""
+    """Convierte de golpe las mejores ofertas nuevas (como guardadas, nunca
+    como aplicadas: enviar es una confirmación de la usuaria). Límite 20."""
     options = payload or BulkAutoApplyRequest()
     limit = max(1, min(options.limit, 20))
     candidates = (
@@ -680,7 +686,7 @@ def auto_apply_bulk(
     )
     converted: list[AutoApplyRead] = []
     for match in candidates:
-        application = _convert_match_to_applied(match, current_user, db)
+        application = _convert_match(match, current_user, db, False, None)
         db.flush()
         db.refresh(application)
         converted.append(AutoApplyRead(application=application, pack=_pack_for_match(match, current_user, db)))
@@ -759,7 +765,7 @@ def send_match_email(
         kind="offer",
         match_id=match.id,
     )
-    application = _convert_match_to_applied(match, current_user, db)
+    application = _convert_match(match, current_user, db, True, None)
     db.commit()
     db.refresh(application)
     db.refresh(match)

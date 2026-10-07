@@ -153,7 +153,7 @@ Variables of an already-created service are **not synced automatically** from `r
 No free API lets you press "apply" on someone else's portal: they only return the URL. Postulare automates everything else, free and locally:
 
 - `GET /matches/{id}/apply-pack`: template letter + CV in markdown + email subject/body + `mailto:` + checklist. `POST` to the same path rebuilds the kit with your edited letter (for mailto and copying too).
-- `POST /matches/{id}/auto-apply`: converts to "applied" (with today's date), generates the template letter if missing and returns the kit.
+- `POST /matches/{id}/auto-apply`: prepares the application as saved (or applied with `applied: true`), generates the letter if missing and returns the kit. Never marks "applied" by default: the app always asks first.
 - `POST /matches/auto-apply-bulk` (`{min_score, limit}`): converts the best new ones in bulk.
 - `POST /matches/convert-bulk` (`{match_ids}`): saves several offers as applications at once.
 - `GET /profile/cv-document?format=markdown|text|html&lang=es|ca|en`: CV generated from the profile to paste or print to PDF.

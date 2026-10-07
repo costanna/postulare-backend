@@ -145,7 +145,7 @@ Las variables de un servicio ya creado **no se sincronizan solas** desde `render
 Ninguna API gratuita permite pulsar «aplicar» en el portal ajeno: solo devuelven la URL. Postulare automatiza todo lo demás, gratis y en local:
 
 - `GET /matches/{id}/apply-pack`: carta plantilla + CV en markdown + asunto/cuerpo de email + `mailto:` + checklist. `POST` al mismo path reconstruye el kit con tu carta editada (para el mailto y los copiados, sin guardar).
-- `POST /matches/{id}/auto-apply`: convierte a «aplicada» (con fecha de hoy), genera la carta plantilla si falta y devuelve el kit.
+- `POST /matches/{id}/auto-apply`: prepara la candidatura como guardada (o aplicada con `applied: true`), genera la carta si falta y devuelve el kit. Nunca marca «aplicada» por defecto: la app siempre pregunta primero.
 - `POST /matches/convert-bulk` (`{match_ids}`, máx. 20): guarda varias ofertas como candidaturas de golpe.
 - `GET /profile/cv-document?format=markdown|text|html&lang=es|ca|en`: CV generado desde el perfil para pegar o imprimir a PDF.
 

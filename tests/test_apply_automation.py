@@ -35,12 +35,21 @@ def test_auto_apply_converts_and_returns_pack(client, auth_headers, monkeypatch)
     response = client.post(f"/matches/{match_id}/auto-apply", headers=auth_headers)
     assert response.status_code == 201
     body = response.json()
-    assert body["application"]["status"] == "applied"
-    assert body["application"]["applied_at"] == date.today().isoformat()
+    # Por defecto queda guardada: solo es "aplicada" si la usuaria lo confirma.
+    assert body["application"]["status"] == "saved"
+    assert body["application"]["applied_at"] is None
     assert body["pack"]["cover_letter"]
     assert body["needs_manual_step"] is True
     # Segunda vez: conflicto, sin duplicados.
     assert client.post(f"/matches/{match_id}/auto-apply", headers=auth_headers).status_code == 409
+
+
+def test_auto_apply_as_applied_marks_applied_with_date(client, auth_headers, monkeypatch):
+    match_id = _match_id(client, auth_headers, monkeypatch)
+    response = client.post(f"/matches/{match_id}/auto-apply", headers=auth_headers, json={"applied": True})
+    assert response.status_code == 201
+    assert response.json()["application"]["status"] == "applied"
+    assert response.json()["application"]["applied_at"] == date.today().isoformat()
 
 
 def test_bulk_auto_apply_converts_top_matches(client, auth_headers, monkeypatch):
@@ -50,3 +59,5 @@ def test_bulk_auto_apply_converts_top_matches(client, auth_headers, monkeypatch)
     response = client.post("/matches/auto-apply-bulk", headers=auth_headers, json={"min_score": 0, "limit": 5})
     assert response.status_code == 201
     assert len(response.json()["converted"]) >= 1
+    # En lote nunca se marca como aplicada: enviar lo confirma la usuaria.
+    assert all(m["application"]["status"] == "saved" for m in response.json()["converted"])
