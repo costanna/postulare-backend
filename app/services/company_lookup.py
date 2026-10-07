@@ -18,8 +18,8 @@ from app.services.job_search import _cache_get, _cache_put
 CLEARBIT_URL = "https://autocomplete.clearbit.com/v1/companies/suggest"
 
 _TIMEOUT = 8.0
-_CONTACT_PATHS = ("", "/contact", "/contacto", "/jobs", "/empleo", "/careers", "/careers/")
-_MAX_PAGES = 3
+_CONTACT_PATHS = ("", "/contact", "/contacto", "/jobs", "/empleo", "/careers")
+_MAX_PAGES = 5
 
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 
