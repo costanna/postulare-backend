@@ -144,6 +144,19 @@ def test_demo_cannot_send_spontaneous(client):
     assert client.post("/targets/send-bulk", headers=headers, json={"target_ids": []}).status_code == 403
 
 
+def test_demo_cannot_use_targets_at_all(client):
+    tokens = client.post("/auth/demo").json()
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    assert client.get("/targets", headers=headers).status_code == 403
+    assert client.get("/targets/quota", headers=headers).status_code == 403
+    assert client.get("/targets/suggestions", headers=headers).status_code == 403
+    assert (
+        client.post("/targets", headers=headers, json={"name": "X", "email": "x@x.example"}).status_code == 403
+    )
+    # Los CV del perfil sí siguen disponibles en demo (vista previa del kit).
+    assert client.get("/profile/cvs", headers=headers).status_code == 200
+
+
 def test_pack_prefers_saved_cv(client, auth_headers, monkeypatch):
     import app.routers.matches as matches_router
     from tests.test_matches import _set_profile

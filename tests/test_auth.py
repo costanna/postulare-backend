@@ -16,6 +16,17 @@ def test_register_duplicate_email_returns_409(client):
     assert response.status_code == 409
 
 
+def test_registration_allowlist_blocks_others_and_ignores_case(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ALLOWED_REGISTRATION_EMAILS", "costanna.bcn@gmail.com")
+    assert _register(client, email="otro@example.com").status_code == 403
+    assert _register(client, email="COSTANNA.BCN@GMAIL.COM").status_code == 201
+    # Vacío = registro abierto (resto de tests).
+    monkeypatch.setattr(settings, "ALLOWED_REGISTRATION_EMAILS", "")
+    assert _register(client, email="libre@example.com").status_code == 201
+
+
 def test_login_with_correct_credentials_returns_tokens(client):
     _register(client)
     response = client.post("/auth/login", json={"email": "ana@example.com", "password": "supersecret123"})

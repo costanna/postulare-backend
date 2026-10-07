@@ -45,6 +45,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     dependencies=[Depends(limit_register)],
 )
 def register(payload: UserRegister, db: Session = Depends(get_db)) -> User:
+    allowed = [email.strip().lower() for email in settings.ALLOWED_REGISTRATION_EMAILS.split(",") if email.strip()]
+    if allowed and payload.email.strip().lower() not in allowed:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registro restringido a usuarios invitados")
     existing = db.query(User).filter(func.lower(User.email) == payload.email).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ese email ya está registrado")

@@ -94,6 +94,9 @@ services:
         value: "true"
       - key: DEMO_TTL_HOURS
         value: "24"
+      # Registro restringido (solo esos emails pueden registrarse).
+      - key: ALLOWED_REGISTRATION_EMAILS
+        sync: false
       # Vacíos = en desarrollo el enlace de recuperación se imprime en los
       # logs en vez de enviarse (ver app/services/email.py). Rellena estos
       # cuatro si quieres que los emails salgan de verdad.

@@ -115,6 +115,7 @@ def send_quota(
     db: Session = Depends(get_db),
 ) -> dict:
     """Cuota de envíos de hoy (compartida entre ofertas y espontáneas)."""
+    _forbid_demo(current_user)
     limit = settings.SEND_EMAIL_DAILY_LIMIT_PER_USER
     used = sends_today(db, current_user.id)
     return {"daily_limit": limit, "sent_today": used, "daily_remaining": max(0, limit - used)}
@@ -125,6 +126,7 @@ def list_targets(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[TargetRead]:
+    _forbid_demo(current_user)
     targets = (
         db.query(TargetCompany)
         .filter(TargetCompany.user_id == current_user.id)
@@ -140,6 +142,7 @@ def create_target(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TargetRead:
+    _forbid_demo(current_user)
     target = TargetCompany(
         user_id=current_user.id,
         name=payload.name.strip(),
@@ -165,6 +168,7 @@ def update_target(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TargetRead:
+    _forbid_demo(current_user)
     target = _get_owned_target(target_id, db, current_user)
     updates = payload.model_dump(exclude_unset=True)
     if "name" in updates and updates["name"]:
@@ -192,6 +196,7 @@ def delete_target(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
+    _forbid_demo(current_user)
     db.delete(_get_owned_target(target_id, db, current_user))
     db.commit()
 
@@ -374,6 +379,7 @@ def get_suggestions(
     db: Session = Depends(get_db),
 ) -> SuggestionsRead:
     """Empresas descubiertas solas: de tus ofertas y del hilo HN mensual."""
+    _forbid_demo(current_user)
     return SuggestionsRead(
         from_offers=_offer_suggestions(db, current_user),
         from_hn=_hn_suggestions(current_user),
@@ -386,6 +392,7 @@ def import_suggestions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ImportRead:
+    _forbid_demo(current_user)
     imported, skipped = _import_suggestions(db, current_user, payload.items)
     return ImportRead(imported=imported, skipped=skipped)
 

@@ -187,7 +187,9 @@ Una demo pública no debe agotar tus cuotas ni tu saldo. Cada recurso de pago ti
 
 ## Cuentas demo
 
-`POST /auth/demo` crea al instante un usuario con datos ficticios, sin email ni contraseña. No puede buscar ofertas reales (403), sus cartas usan siempre la plantilla, caduca a las `DEMO_TTL_HOURS` horas y las caducadas se borran solas con todos sus datos. Hay límite por IP y un tope global de demos al día.
+`POST /auth/demo` crea al instante un usuario con datos ficticios, sin email ni contraseña. No puede buscar ofertas reales (403), ni enviar emails ni usar Espontáneas (403 y sección oculta en la app), sus cartas usan siempre la plantilla, caduca a las `DEMO_TTL_HOURS` horas y las caducadas se borran solas con todos sus datos. Hay límite por IP y un tope global de demos al día.
+
+**Registro restringido (uso personal):** con `ALLOWED_REGISTRATION_EMAILS=costanna.bcn@gmail.com` solo ese email puede registrarse (403 al resto).
 
 ## Seguridad
 

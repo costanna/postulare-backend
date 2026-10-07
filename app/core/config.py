@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     DEMO_ACCOUNTS_DAILY_LIMIT: int = 200
     DEMO_LIMIT_PER_HOUR: int = 5
 
+    # Registro restringido: si tiene emails (separados por coma), solo ellos
+    # pueden registrarse. Vacío = registro abierto.
+    ALLOWED_REGISTRATION_EMAILS: str = ""
+
     FOLLOW_UP_DAYS: int = 7
 
     CV_MAX_BYTES: int = 2_000_000
