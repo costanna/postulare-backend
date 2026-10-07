@@ -24,9 +24,16 @@ def smtp_configured() -> bool:
 
 
 def send_application_email(
-    to_email: str, subject: str, body: str, cv_text: str, cv_filename: str = "CV.txt"
+    to_email: str,
+    subject: str,
+    body: str,
+    attachment_text: str,
+    attachment_filename: str = "CV.txt",
+    attachment_pdf: bytes | None = None,
+    attachment_pdf_name: str | None = None,
 ) -> None:
-    """Envía la candidatura con el CV adjunto como texto plano."""
+    """Envía la candidatura con el CV adjunto: el PDF original si lo hay,
+    o el texto plano en su defecto."""
     if not smtp_configured():
         raise MailerError("Envío no configurado: faltan SMTP_HOST/SMTP_USER/SMTP_PASSWORD")
 
@@ -36,7 +43,14 @@ def send_application_email(
     message["From"] = settings.SMTP_USER or settings.SMTP_FROM
     message["To"] = to_email
     message.set_content(body)
-    message.add_attachment(cv_text.encode("utf-8"), maintype="text", subtype="plain", filename=cv_filename)
+    if attachment_pdf:
+        message.add_attachment(
+            attachment_pdf, maintype="application", subtype="pdf", filename=attachment_pdf_name or "CV.pdf"
+        )
+    else:
+        message.add_attachment(
+            attachment_text.encode("utf-8"), maintype="text", subtype="plain", filename=attachment_filename
+        )
 
     try:
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20) as server:

@@ -12,6 +12,8 @@ class UserCvRead(BaseModel):
     language: str
     content: str
     updated_at: datetime
+    has_file: bool = False
+    filename: str | None = None
 
 
 class UserCvUpsert(BaseModel):

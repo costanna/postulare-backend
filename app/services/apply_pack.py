@@ -154,15 +154,22 @@ def build_checklist(offer_url: str | None, language: str = "es") -> list[str]:
     return [steps[0], steps[1], steps[2], tail]
 
 
-def build_apply_pack(user: User, offer: dict, cover_letter: str, language: str, saved_cv: str | None = None) -> dict:
+def build_apply_pack(
+    user: User,
+    offer: dict,
+    cover_letter: str,
+    language: str,
+    saved_cv: str | None = None,
+    cv_source: str | None = None,
+) -> dict:
     language = _lang(language)
     detected = detect_language(offer.get("title"), offer.get("description"))
     if saved_cv and saved_cv.strip():
         cv_markdown = saved_cv.strip()
-        cv_source = "saved"
+        source = cv_source or "saved"
     else:
         cv_markdown = render_cv_markdown(cv_data_for_user(user), language)
-        cv_source = "generated"
+        source = "generated"
     subject = build_email_subject(offer.get("title"), user.full_name, language)
     keywords = matched_keywords(
         offer.get("title"), offer.get("description"), list(user.skills or [])
@@ -185,7 +192,7 @@ def build_apply_pack(user: User, offer: dict, cover_letter: str, language: str, 
         "detected_language": detected,
         "contact_email": contact_email,
         "cv_markdown": cv_markdown,
-        "cv_source": cv_source,
+        "cv_source": source,
         "email_subject": subject,
         "email_body": body,
         "mailto_link": build_mailto_link(subject, body, contact_email),

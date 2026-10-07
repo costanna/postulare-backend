@@ -34,13 +34,15 @@ from app.services import llm_quota
 from app.services.application_status import stamp_applied_date
 from app.services.apply_pack import (
     build_apply_pack,
-    cv_data_for_user,
     ensure_template_letter,
     extract_contact_email,
     resolve_pack_language,
 )
-from app.services.companies import check_send_allowed, record_email_send, user_cv_for_language
-from app.services.cv_document import render_cv_text
+from app.services.companies import (
+    check_send_allowed,
+    cv_for_sending,
+    record_email_send,
+)
 from app.services.cv_mailer import MailerError, send_application_email, smtp_configured
 from app.services.cover_letter import Candidate, Offer, build_template_letter, generate_ai_letter
 from app.services.duplicates import TrackedIndex, offer_key
@@ -539,8 +541,8 @@ def _pack_for_match(match: Match, user: User, db: Session) -> ApplyPackRead:
     letter = match.cover_letter
     if not letter:
         letter = ensure_template_letter(user, offer, language)
-    saved_cv = user_cv_for_language(db, user.id, language)
-    pack = build_apply_pack(user, offer, letter, language, saved_cv)
+    display, _, _, _, source = cv_for_sending(db, user, language)
+    pack = build_apply_pack(user, offer, letter, language, display, source)
     return ApplyPackRead(**pack)
 
 
@@ -672,12 +674,11 @@ def send_match_email(
         )
     language = _pack_language(current_user, offer, match.cover_letter_language)
     letter = match.cover_letter or ensure_template_letter(current_user, offer, language)
-    saved_cv = user_cv_for_language(db, current_user.id, language)
-    pack = build_apply_pack(current_user, offer, letter, language, saved_cv)
-    attachment = saved_cv or render_cv_text(cv_data_for_user(current_user), language)
-    cv_filename = f"CV-{(current_user.full_name or 'candidatura').strip()}.txt"
+    display, attach_text, pdf_bytes, pdf_name, source = cv_for_sending(db, current_user, language)
+    pack = build_apply_pack(current_user, offer, letter, language, display, source)
+    txt_fallback = f"CV-{(current_user.full_name or 'candidatura').strip()}.txt"
     try:
-        send_application_email(contact, pack["email_subject"], pack["email_body"], attachment, cv_filename)
+        send_application_email(contact, pack["email_subject"], pack["email_body"], attach_text, txt_fallback, pdf_bytes, pdf_name)
     except MailerError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 

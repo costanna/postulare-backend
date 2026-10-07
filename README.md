@@ -157,7 +157,7 @@ Ninguna API gratuita permite pulsar «aplicar» en el portal ajeno: solo devuelv
 
 **Límites anti-spam (ofertas + espontáneas):** 5 envíos/día a empresas distintas y 15 días antes de reenviar a la misma empresa (`Acme SL` = `ACME S.A.`). Ver `POST /targets/*`.
 
-**Mis CV por idioma** (`GET/PUT /profile/cvs/{es,ca,en}`): pega tu CV en cada idioma desde el perfil; al enviar se adjunta tal cual si la oferta va en ese idioma, o se genera uno si lo dejas vacío.
+**Mis CV por idioma** (`GET/PUT /profile/cvs/{es,ca,en}`, `POST .../file`, `DELETE .../file`): pega tu CV o **sube el PDF** en cada idioma desde el perfil. El PDF original se guarda y se adjunta tal cual al enviar (con el texto extraído para mostrar/pegar); si pegas texto después, sustituye al PDF. Sin PDF ni texto, se genera uno desde tu perfil.
 
 **Candidaturas espontáneas** (`/targets`): directorio propio de consultoras y tech (nombre + email + idioma + etiquetas), envío individual o en bloque (`POST /targets/send-bulk`), con carta espontánea en su idioma. Cada envío crea su candidatura «aplicada» y respeta los mismos límites.
 

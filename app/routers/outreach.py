@@ -6,7 +6,7 @@ Límites compartidos con el envío a ofertas: 5/día a empresas distintas y
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -41,22 +41,21 @@ from app.services.application_status import stamp_applied_date
 from app.services.apply_pack import (
     build_email_body,
     build_spontaneous_subject,
-    cv_data_for_user,
     extract_contact_email,
 )
 from app.services.ats import matched_keywords
 from app.services.companies import (
     check_send_allowed,
+    cv_for_sending,
     days_until_retry,
     normalize_company,
     record_email_send,
     score_target,
     sends_today,
-    user_cv_for_language,
 )
 from app.services.cover_letter import Candidate, build_spontaneous_letter
-from app.services.cv_document import render_cv_text
 from app.services.cv_mailer import MailerError, send_application_email, smtp_configured
+from app.services.cv_parser import CvParseError, extract_text
 from app.services.hn_hiring import fetch_hn_suggestions
 from app.services.job_search import JobSearchError
 from app.services.lang_detect import detect_language
@@ -226,20 +225,12 @@ def _send_to_target(db: Session, user: User, target: TargetCompany) -> tuple[App
         about=user.about,
     )
     letter = build_spontaneous_letter(candidate, target.name, language)
-    saved_cv = user_cv_for_language(db, user.id, language)
-    cv_markdown = saved_cv if saved_cv else None
-    if cv_markdown is None:
-        from app.services.cv_document import render_cv_markdown
-
-        cv_markdown = render_cv_markdown(cv_data_for_user(user), language)
-        cv_source = "generated"
-    else:
-        cv_source = "saved"
+    display, attach_text, pdf_bytes, pdf_name, cv_source = cv_for_sending(db, user, language)
     subject = build_spontaneous_subject(user.desired_position, user.full_name, language)
-    body = build_email_body(letter, cv_markdown, None, language)
-    cv_filename = f"CV-{(user.full_name or 'candidatura').strip()}.txt"
+    body = build_email_body(letter, display, None, language)
+    txt_fallback = f"CV-{(user.full_name or 'candidatura').strip()}.txt"
     try:
-        send_application_email(target.email, subject, body, cv_markdown, cv_filename)
+        send_application_email(target.email, subject, body, attach_text, txt_fallback, pdf_bytes, pdf_name)
     except MailerError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
@@ -483,12 +474,23 @@ def send_bulk(
 cv_router = APIRouter(prefix="/profile/cvs", tags=["profile"])
 
 
+def _cv_read(row: UserCv) -> dict:
+    return {
+        "language": row.language,
+        "content": row.content,
+        "updated_at": row.updated_at,
+        "has_file": bool(row.file_data),
+        "filename": row.filename,
+    }
+
+
 @cv_router.get("", response_model=list[UserCvRead])
 def list_cvs(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> list[UserCv]:
-    return db.query(UserCv).filter(UserCv.user_id == current_user.id).order_by(UserCv.language).all()
+) -> list[dict]:
+    rows = db.query(UserCv).filter(UserCv.user_id == current_user.id).order_by(UserCv.language).all()
+    return [_cv_read(row) for row in rows]
 
 
 @cv_router.put("/{language}", response_model=UserCvRead)
@@ -497,7 +499,7 @@ def save_cv(
     payload: UserCvUpsert,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> UserCv:
+) -> dict:
     if language not in CV_LANGUAGES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Idioma debe ser es, ca o en"
@@ -518,10 +520,76 @@ def save_cv(
         existing = UserCv(user_id=current_user.id, language=language, content=content)
         db.add(existing)
     else:
+        # El texto manda: sustituye también el PDF si lo había.
         existing.content = content
+        existing.file_data = None
+        existing.filename = None
     db.commit()
     db.refresh(existing)
-    return existing
+    return _cv_read(existing)
+
+
+@cv_router.post("/{language}/file", response_model=UserCvRead)
+def upload_cv_file(
+    language: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Sube el CV en PDF para un idioma: se guarda el original (se adjunta al
+    enviar) y se extrae el texto para mostrarlo y pegarlo."""
+    if language not in CV_LANGUAGES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Idioma debe ser es, ca o en"
+        )
+    data = file.file.read(settings.CV_MAX_BYTES + 1)
+    if len(data) > settings.CV_MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"El PDF pesa demasiado (máximo {settings.CV_MAX_BYTES // 1_000_000} MB)",
+        )
+    if not data.startswith(b"%PDF-"):
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="El fichero no es un PDF")
+    try:
+        text = extract_text(data, settings.CV_MAX_PAGES)
+    except CvParseError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+    filename = (file.filename or "CV.pdf").split("/")[-1].split("\\")[-1][:100] or "CV.pdf"
+    existing = (
+        db.query(UserCv)
+        .filter(UserCv.user_id == current_user.id, UserCv.language == language)
+        .first()
+    )
+    if existing is None:
+        existing = UserCv(user_id=current_user.id, language=language, content=text[:10000])
+        db.add(existing)
+    else:
+        existing.content = text[:10000]
+    existing.file_data = data
+    existing.filename = filename
+    db.commit()
+    db.refresh(existing)
+    return _cv_read(existing)
+
+
+@cv_router.delete("/{language}/file", status_code=status.HTTP_204_NO_CONTENT)
+def delete_cv_file(
+    language: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """Quita el PDF pero conserva el texto extraído como CV de ese idioma."""
+    row = (
+        db.query(UserCv)
+        .filter(UserCv.user_id == current_user.id, UserCv.language == language)
+        .first()
+    )
+    if row is None or not row.file_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sin PDF en ese idioma")
+    row.file_data = None
+    row.filename = None
+    db.commit()
 
 
 @cv_router.delete("/{language}", status_code=status.HTTP_204_NO_CONTENT)

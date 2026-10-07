@@ -112,6 +112,38 @@ def user_cv_for_language(db: Session, user_id: object, language: str) -> str | N
     return content.strip() if content and content.strip() else None
 
 
+def cv_for_sending(
+    db: Session, user: object, language: str
+) -> tuple[str, str, bytes | None, str | None, str]:
+    """CV a usar en el envío: (mostrar_md, adjunto_txt, pdf, pdf_nombre, origen).
+
+    Origen: "pdf" (tu PDF original), "saved" (tu texto guardado) o "generated"
+    (generado del perfil). Mostrar usa markdown y el adjunto texto plano.
+    """
+    from app.services.cv_document import CvData, render_cv_markdown, render_cv_text
+
+    row = (
+        db.query(UserCv)
+        .filter(UserCv.user_id == user.id, UserCv.language == language)
+        .first()
+    )
+    if row is not None and row.file_data:
+        text = row.content.strip() if row.content and row.content.strip() else ""
+        return text, text, bytes(row.file_data), row.filename or "CV.pdf", "pdf"
+    if row is not None and row.content and row.content.strip():
+        return row.content.strip(), row.content.strip(), None, None, "saved"
+    cv = CvData(
+        full_name=user.full_name,
+        desired_position=user.desired_position,
+        location=user.location,
+        seniority=user.seniority.value if user.seniority else None,
+        skills=list(user.skills or []),
+        about=user.about,
+        email=user.email,
+    )
+    return render_cv_markdown(cv, language), render_cv_text(cv, language), None, None, "generated"
+
+
 def score_target(skills: list[str], desired_position: str | None, tags: list[str]) -> int:
     """Afinidad empresa-CV para el piloto: tags que casan con tus skills (x2)
     y con tu puesto deseado (x1). 0 = no encaja, el piloto la salta."""

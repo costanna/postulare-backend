@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, DateTime, ForeignKey, LargeBinary, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -19,6 +19,10 @@ class UserCv(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     language: Mapped[str] = mapped_column(String(2), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # PDF original (opcional): se adjunta tal cual al enviar. `content` guarda
+    # el texto extraído para mostrarlo y pegarlo.
+    file_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

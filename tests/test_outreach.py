@@ -182,7 +182,7 @@ def test_autopilot_sends_best_matches_first(client, auth_headers, _fake_smtp):
     a = _target(client, auth_headers, name="Python Shop SL", email="p@x.example", tags=["python"])
     c = _target(client, auth_headers, name="Full Stack SL", email="f@x.example", tags=["python", "fastapi"])
 
-    body = client.post("/targets/autopilot", headers=auth_headers, json={}).json()
+    body = client.post("/targets/autopilot", headers=auth_headers, json={"include_suggestions": False}).json()
     assert [r["sent_to"] for r in body["sent"] if r["ok"]] == ["f@x.example", "p@x.example"]
     assert body["skipped"] == 0
     listed = {t["email"]: t for t in client.get("/targets", headers=auth_headers).json()}
@@ -196,11 +196,11 @@ def test_autopilot_respects_limit_and_daily_quota(client, auth_headers, _fake_sm
     _skilled_profile(client, auth_headers)
     for i in range(3):
         _target(client, auth_headers, name=f"Tech {i} SL", email=f"t{i}@x.example", tags=["python"])
-    body = client.post("/targets/autopilot", headers=auth_headers, json={"limit": 1}).json()
+    body = client.post("/targets/autopilot", headers=auth_headers, json={"limit": 1, "include_suggestions": False}).json()
     assert len([r for r in body["sent"] if r["ok"]]) == 1
 
     monkeypatch.setattr(settings, "SEND_EMAIL_DAILY_LIMIT_PER_USER", 1)
-    body = client.post("/targets/autopilot", headers=auth_headers, json={}).json()
+    body = client.post("/targets/autopilot", headers=auth_headers, json={"include_suggestions": False}).json()
     assert body["sent"] == []
     assert body["daily_remaining"] == 0
 
