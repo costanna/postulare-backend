@@ -541,7 +541,7 @@ def _pack_for_match(match: Match, user: User, db: Session) -> ApplyPackRead:
     letter = match.cover_letter
     if not letter:
         letter = ensure_template_letter(user, offer, language)
-    display, _, _, _, source = cv_for_sending(db, user, language)
+    display, _, _, source = cv_for_sending(db, user, language)
     pack = build_apply_pack(user, offer, letter, language, display, source)
     return ApplyPackRead(**pack)
 
@@ -674,11 +674,10 @@ def send_match_email(
         )
     language = _pack_language(current_user, offer, match.cover_letter_language)
     letter = match.cover_letter or ensure_template_letter(current_user, offer, language)
-    display, attach_text, pdf_bytes, pdf_name, source = cv_for_sending(db, current_user, language)
+    display, pdf_bytes, pdf_name, source = cv_for_sending(db, current_user, language)
     pack = build_apply_pack(current_user, offer, letter, language, display, source)
-    txt_fallback = f"CV-{(current_user.full_name or 'candidatura').strip()}.txt"
     try:
-        send_application_email(contact, pack["email_subject"], pack["email_body"], attach_text, txt_fallback, pdf_bytes, pdf_name)
+        send_application_email(contact, pack["email_subject"], pack["email_body"], pdf_bytes, pdf_name)
     except MailerError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 

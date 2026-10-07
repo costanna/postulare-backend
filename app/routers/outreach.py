@@ -225,12 +225,11 @@ def _send_to_target(db: Session, user: User, target: TargetCompany) -> tuple[App
         about=user.about,
     )
     letter = build_spontaneous_letter(candidate, target.name, language)
-    display, attach_text, pdf_bytes, pdf_name, cv_source = cv_for_sending(db, user, language)
+    display, pdf_bytes, pdf_name, cv_source = cv_for_sending(db, user, language)
     subject = build_spontaneous_subject(user.desired_position, user.full_name, language)
     body = build_email_body(letter, display, None, language)
-    txt_fallback = f"CV-{(user.full_name or 'candidatura').strip()}.txt"
     try:
-        send_application_email(target.email, subject, body, attach_text, txt_fallback, pdf_bytes, pdf_name)
+        send_application_email(target.email, subject, body, pdf_bytes, pdf_name)
     except MailerError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 

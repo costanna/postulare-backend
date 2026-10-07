@@ -136,3 +136,31 @@ def test_text_save_clears_pdf_and_file_delete_keeps_text(client, auth_headers):
     assert client.delete("/profile/cvs/es/file", headers=auth_headers).status_code == 204
     listed = client.get("/profile/cvs", headers=auth_headers).json()[0]
     assert listed["has_file"] is False and "Python" in listed["content"]
+
+
+def test_generated_pdf_is_valid_and_readable():
+    import io
+
+    from pypdf import PdfReader
+
+    from app.services.cv_pdf import text_to_pdf
+
+    pdf = text_to_pdf("Anna Costa\nDesarrolladora — Python, experiència i col·laboració…")
+    assert pdf.startswith(b"%PDF-")
+    text = "\n".join((page.extract_text() or "") for page in PdfReader(io.BytesIO(pdf)).pages)
+    assert "Anna Costa" in text and "Python" in text
+    assert "experiencia" in text or "experi" in text  # tildes preservadas o sanitizadas
+
+
+def test_generated_pdf_paginates_long_text():
+    import io
+
+    from pypdf import PdfReader
+
+    from app.services.cv_pdf import text_to_pdf
+
+    long_text = "\n".join(f"Línea {i} con contenido de relleno para el CV." for i in range(200))
+    pdf = text_to_pdf(long_text)
+    reader = PdfReader(io.BytesIO(pdf))
+    assert len(reader.pages) > 1
+    assert "Línea 199" in "\n".join((page.extract_text() or "") for page in reader.pages)

@@ -40,6 +40,7 @@ class _FakeConn:
         self._sent["subject"] = message["Subject"]
         attachments = list(message.iter_attachments())
         self._sent["attachment"] = attachments[0].get_filename() if attachments else None
+        self._sent["attachment_type"] = attachments[0].get_content_type() if attachments else None
 
 
 class _FakeSmtpModule:
@@ -94,7 +95,8 @@ def test_send_email_delivers_and_converts(client, auth_headers, match_ids, monke
     assert body["subject"].startswith("Candidatura:")
     assert body["application"]["status"] == "applied"
     assert sent["to"] == "empleo@empresa.com"
-    assert (sent["attachment"] or "").startswith("CV")
+    assert sent["attachment_type"] == "application/pdf"
+    assert (sent["attachment"] or "").endswith(".pdf")
     # Segunda vez: ya es candidatura.
     assert client.post(f"/matches/{match_ids[0]}/send-email", headers=auth_headers).status_code == 409
 
