@@ -91,3 +91,11 @@ class BulkAutoApplyRequest(BaseModel):
 class BulkAutoApplyRead(BaseModel):
     converted: list[AutoApplyRead]
     skipped: int = 0
+
+
+class SendEmailRead(BaseModel):
+    application: ApplicationRead
+    sent_to: str
+    subject: str
+    language: str | None = None
+    detected_language: str | None = None

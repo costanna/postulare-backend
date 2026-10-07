@@ -27,11 +27,20 @@ from app.schemas.match import (
     CoverLetterRequest,
     MatchRead,
     MatchSearchResult,
+    SendEmailRead,
 )
 from app.schemas.search_filters import SearchFilters, SearchFiltersRead
 from app.services import llm_quota
 from app.services.application_status import stamp_applied_date
-from app.services.apply_pack import build_apply_pack, ensure_template_letter, resolve_pack_language
+from app.services.apply_pack import (
+    build_apply_pack,
+    cv_data_for_user,
+    ensure_template_letter,
+    extract_contact_email,
+    resolve_pack_language,
+)
+from app.services.cv_document import render_cv_text
+from app.services.cv_mailer import MailerError, send_application_email, smtp_configured
 from app.services.cover_letter import Candidate, Offer, build_template_letter, generate_ai_letter
 from app.services.duplicates import TrackedIndex, offer_key
 from app.services.eures import eures_enabled, is_spain_location, search_eures
@@ -613,3 +622,66 @@ def auto_apply_bulk(
         converted.append(AutoApplyRead(application=application, pack=_pack_for_match(match, current_user)))
     db.commit()
     return BulkAutoApplyRead(converted=converted, skipped=0)
+
+
+@router.post("/{match_id}/send-email", response_model=SendEmailRead, status_code=status.HTTP_201_CREATED)
+def send_match_email(
+    match_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SendEmailRead:
+    """Envía la candidatura al email de contacto de la oferta, en su idioma,
+    con el CV adjunto. Solo cuentas reales: las demo responden 403."""
+    if current_user.is_demo:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="La cuenta demo no puede enviar emails. Crea una cuenta para usar el envío.",
+        )
+    match = _get_owned_match(match_id, db, current_user)
+    if match.status == MatchStatus.converted:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta oferta ya es una candidatura")
+    offer = _offer_dict(match.job_offer)
+    contact = extract_contact_email(offer.get("description"), offer.get("title"))
+    if not contact:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Esta oferta no trae email de contacto: usa «Enviar CV» para copiar el kit.",
+        )
+    if not smtp_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Envío no configurado en el servidor (SMTP).",
+        )
+    scope = f"send-email:{current_user.id}"
+    if not llm_quota.try_consume(db, scope, settings.SEND_EMAIL_DAILY_LIMIT_PER_USER):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Has llegado al tope diario de envíos.",
+        )
+    language = _pack_language(current_user, offer, match.cover_letter_language)
+    letter = match.cover_letter or ensure_template_letter(current_user, offer, language)
+    pack = build_apply_pack(current_user, offer, letter, language)
+    cv_filename = f"CV-{(current_user.full_name or 'candidatura').strip()}.txt"
+    try:
+        send_application_email(
+            contact,
+            pack["email_subject"],
+            pack["email_body"],
+            render_cv_text(cv_data_for_user(current_user), language),
+            cv_filename,
+        )
+    except MailerError as exc:
+        llm_quota.release(db, scope)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    application = _convert_match_to_applied(match, current_user, db)
+    db.commit()
+    db.refresh(application)
+    db.refresh(match)
+    return SendEmailRead(
+        application=application,
+        sent_to=contact,
+        subject=pack["email_subject"],
+        language=pack["language"],
+        detected_language=pack["detected_language"],
+    )

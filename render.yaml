@@ -105,3 +105,5 @@ services:
         sync: false
       - key: SMTP_FROM
         value: no-reply@postulare.app
+      - key: SEND_EMAIL_DAILY_LIMIT_PER_USER
+        value: "10"

@@ -78,6 +78,18 @@ def _lang(language: str) -> str:
     return language if language in SUPPORTED_PACK_LANGUAGES else "es"
 
 
+def cv_data_for_user(user: User) -> CvData:
+    return CvData(
+        full_name=user.full_name,
+        desired_position=user.desired_position,
+        location=user.location,
+        seniority=user.seniority.value if user.seniority else None,
+        skills=list(user.skills or []),
+        about=user.about,
+        email=user.email,
+    )
+
+
 def resolve_pack_language(user: User, offer: dict) -> tuple[str, str | None]:
     """Idioma del kit: el detectado en la oferta o el preferido del usuario.
 
@@ -121,15 +133,7 @@ def build_checklist(offer_url: str | None, language: str = "es") -> list[str]:
 def build_apply_pack(user: User, offer: dict, cover_letter: str, language: str) -> dict:
     language = _lang(language)
     detected = detect_language(offer.get("title"), offer.get("description"))
-    cv = CvData(
-        full_name=user.full_name,
-        desired_position=user.desired_position,
-        location=user.location,
-        seniority=user.seniority.value if user.seniority else None,
-        skills=list(user.skills or []),
-        about=user.about,
-        email=user.email,
-    )
+    cv = cv_data_for_user(user)
     cv_markdown = render_cv_markdown(cv, language)
     subject = build_email_subject(offer.get("title"), user.full_name, language)
     body = build_email_body(cover_letter, cv_markdown, offer.get("url"), language)
