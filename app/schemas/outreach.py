@@ -81,6 +81,11 @@ class SpontaneousSendRead(BaseModel):
     cv_source: str = "generated"
 
 
+class TargetSendRequest(BaseModel):
+    # Carta editada por el usuario: si llega (no vacía), se envía esa.
+    cover_letter: str | None = Field(default=None, max_length=3000)
+
+
 class AutopilotRequest(BaseModel):
     # Cuántas como máximo (el tope diario de 5/día manda igualmente).
     limit: int = Field(default=5, ge=1, le=5)

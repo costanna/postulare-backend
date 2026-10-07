@@ -27,11 +27,9 @@ from app.schemas.outreach import (
     SpontaneousSendRead,
     SuggestionRead,
     SuggestionsRead,
-    SpontaneousSendRead,
-    SuggestionRead,
-    SuggestionsRead,
     TargetCreate,
     TargetRead,
+    TargetSendRequest,
     TargetSendResult,
     TargetUpdate,
     UserCvRead,
@@ -201,7 +199,9 @@ def delete_target(
     db.commit()
 
 
-def _send_to_target(db: Session, user: User, target: TargetCompany) -> tuple[Application, str, str, str, str]:
+def _send_to_target(
+    db: Session, user: User, target: TargetCompany, edited_letter: str | None = None
+) -> tuple[Application, str, str, str, str]:
     """Envía la espontánea. Devuelve (candidatura, destino, asunto, idioma, cv_source)."""
     allowed, reason = check_send_allowed(db, user.id, target.name, settings.SPONTANEOUS_RESEND_DAYS)
     if not allowed:
@@ -229,7 +229,7 @@ def _send_to_target(db: Session, user: User, target: TargetCompany) -> tuple[App
         skills=list(user.skills or []),
         about=user.about,
     )
-    letter = build_spontaneous_letter(candidate, target.name, language)
+    letter = (edited_letter or "").strip() or build_spontaneous_letter(candidate, target.name, language)
     display, pdf_bytes, pdf_name, cv_source = cv_for_sending(db, user, language)
     subject = build_spontaneous_subject(user.desired_position, user.full_name, language)
     body = build_email_body(letter, display, None, language)
@@ -266,12 +266,16 @@ def _send_to_target(db: Session, user: User, target: TargetCompany) -> tuple[App
 @router.post("/{target_id}/send", response_model=SpontaneousSendRead, status_code=status.HTTP_201_CREATED)
 def send_to_target(
     target_id: uuid.UUID,
+    payload: TargetSendRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SpontaneousSendRead:
     _forbid_demo(current_user)
     target = _get_owned_target(target_id, db, current_user)
-    application, sent_to, subject, language, cv_source = _send_to_target(db, current_user, target)
+    edited = (payload.cover_letter if payload else None) or ""
+    application, sent_to, subject, language, cv_source = _send_to_target(
+        db, current_user, target, edited.strip() or None
+    )
     return SpontaneousSendRead(
         application=application,
         target=_to_read(db, current_user, target),

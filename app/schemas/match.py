@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import MatchStatus, PreferredLanguage
 from app.schemas.application import ApplicationRead
@@ -102,3 +102,8 @@ class SendEmailRead(BaseModel):
     language: str | None = None
     detected_language: str | None = None
     cv_source: str = "generated"
+
+
+class SendEmailRequest(BaseModel):
+    # Carta editada por el usuario: si llega (no vacía), se envía y se guarda.
+    cover_letter: str | None = Field(default=None, max_length=3000)

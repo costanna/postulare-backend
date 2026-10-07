@@ -118,6 +118,40 @@ def test_send_email_without_smtp_is_503(client, auth_headers, match_ids, monkeyp
     assert client.post(f"/matches/{match_ids[0]}/send-email", headers=auth_headers).status_code == 503
 
 
+def test_send_email_with_edited_letter(client, auth_headers, match_ids, monkeypatch):
+    sent: dict = {}
+
+    class _Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def starttls(self):
+            pass
+
+        def login(self, user, password):
+            pass
+
+        def send_message(self, message):
+            sent["body"] = message.get_body().get_content()
+
+    class _Module:
+        def SMTP(self, host, port, timeout=None):
+            return _Conn()
+
+    monkeypatch.setattr(cv_mailer, "smtplib", _Module())
+    response = client.post(
+        f"/matches/{match_ids[0]}/send-email", headers=auth_headers, json={"cover_letter": "Mi carta personalizada"}
+    )
+    assert response.status_code == 201
+    assert "Mi carta personalizada" in sent["body"]
+    # Queda guardada en el match.
+    stored = client.get("/matches", headers=auth_headers).json()
+    assert any(m["cover_letter"] == "Mi carta personalizada" for m in stored)
+
+
 def test_send_email_respects_daily_limit(client, auth_headers, match_ids, monkeypatch):
     monkeypatch.setattr(settings, "SEND_EMAIL_DAILY_LIMIT_PER_USER", 1)
     monkeypatch.setattr(cv_mailer, "smtplib", _FakeSmtpModule({}))

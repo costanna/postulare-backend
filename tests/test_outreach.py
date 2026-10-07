@@ -111,6 +111,40 @@ def test_spontaneous_send_uses_target_language_and_records(client, auth_headers,
     assert listed["retry_in_days"] == 30
 
 
+def test_spontaneous_send_with_edited_letter(client, auth_headers, monkeypatch):
+    import app.services.cv_mailer as cv_mailer
+
+    sent: dict = {}
+
+    class _Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def starttls(self):
+            pass
+
+        def login(self, user, password):
+            pass
+
+        def send_message(self, message):
+            sent["body"] = message.get_body().get_content()
+
+    class _Module:
+        def SMTP(self, host, port, timeout=None):
+            return _Conn()
+
+    monkeypatch.setattr(cv_mailer, "smtplib", _Module())
+    target = _target(client, auth_headers)
+    response = client.post(
+        f"/targets/{target['id']}/send", headers=auth_headers, json={"cover_letter": "Carta a medida"}
+    )
+    assert response.status_code == 201
+    assert "Carta a medida" in sent["body"]
+
+
 def test_cooldown_blocks_same_company_variants(client, auth_headers, _fake_smtp):
     first = _target(client, auth_headers, name="Acme SL", email="a@acme.example")
     assert client.post(f"/targets/{first['id']}/send", headers=auth_headers).status_code == 201

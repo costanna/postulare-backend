@@ -28,6 +28,7 @@ from app.schemas.match import (
     MatchRead,
     MatchSearchResult,
     SendEmailRead,
+    SendEmailRequest,
 )
 from app.schemas.search_filters import SearchFilters, SearchFiltersRead
 from app.services import llm_quota
@@ -631,12 +632,14 @@ def auto_apply_bulk(
 @router.post("/{match_id}/send-email", response_model=SendEmailRead, status_code=status.HTTP_201_CREATED)
 def send_match_email(
     match_id: uuid.UUID,
+    payload: SendEmailRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SendEmailRead:
     """Envía la candidatura al email de contacto de la oferta, en su idioma,
     con tu CV (guardado o generado) adjunto. Solo cuentas reales.
 
+    Acepta `cover_letter` editada: se envía esa y queda guardada en el match.
     Límites: 5 envíos/día a empresas distintas y 15 días entre envíos a la
     misma empresa (normalizando SL/S.A./etc.)."""
     if current_user.is_demo:
@@ -673,7 +676,14 @@ def send_match_email(
             detail=f"Ya escribiste a {company} hace poco: espera {waiting} días para reenviar.",
         )
     language = _pack_language(current_user, offer, match.cover_letter_language)
-    letter = match.cover_letter or ensure_template_letter(current_user, offer, language)
+    edited = (payload.cover_letter if payload else None) or ""
+    letter = edited.strip() or match.cover_letter or ensure_template_letter(current_user, offer, language)
+    if edited.strip() and edited.strip() != (match.cover_letter or ""):
+        match.cover_letter = edited.strip()[:3000]
+        match.cover_letter_source = "template"
+        match.cover_letter_language = language
+        match.cover_letter_at = datetime.now(timezone.utc)
+        db.add(match)
     display, pdf_bytes, pdf_name, source = cv_for_sending(db, current_user, language)
     pack = build_apply_pack(current_user, offer, letter, language, display, source)
     try:
