@@ -658,7 +658,7 @@ def send_match_email(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Envío no configurado en el servidor (SMTP).",
         )
-    allowed, reason = check_send_allowed(db, current_user.id, company)
+    allowed, reason = check_send_allowed(db, current_user.id, company, settings.OFFER_RESEND_DAYS)
     if not allowed:
         if reason == "daily_limit":
             raise HTTPException(

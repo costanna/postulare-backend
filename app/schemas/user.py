@@ -20,6 +20,7 @@ class UserRead(BaseModel):
     preferred_language: PreferredLanguage
     about: str | None = None
     is_demo: bool = False
+    auto_outreach_paused: bool = False
     created_at: datetime
 
 
@@ -32,6 +33,7 @@ class ProfileUpdate(BaseModel):
     min_salary: int | None = Field(default=None, ge=0)
     preferred_language: PreferredLanguage | None = None
     about: str | None = Field(default=None, max_length=2000)
+    auto_outreach_paused: bool | None = None
 
     @field_validator("skills", "preferred_language")
     @classmethod

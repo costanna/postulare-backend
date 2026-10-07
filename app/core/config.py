@@ -38,9 +38,12 @@ class Settings(BaseSettings):
     EURES_MAX_RESULTS: int = 20
 
     # Envío directo de candidaturas por email (SMTP propio, p. ej. Gmail con
-    # contraseña de aplicación). 5/día a empresas distintas y 15 días entre
-    # envíos a la misma empresa. Solo cuentas reales: las demo lo tienen prohibido (403).
+    # contraseña de aplicación). 5/día a empresas distintas; margen entre
+    # reenvíos a la misma empresa: 15 días en ofertas, 30 en espontáneas.
+    # Solo cuentas reales: las demo lo tienen prohibido (403).
     SEND_EMAIL_DAILY_LIMIT_PER_USER: int = 5
+    OFFER_RESEND_DAYS: int = 15
+    SPONTANEOUS_RESEND_DAYS: int = 30
 
     # IA (opcional): cartas de presentación con Claude. Sin clave, o al agotar los
     # topes, se usa una plantilla sin IA (gratis) - la función nunca deja de responder.

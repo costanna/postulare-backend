@@ -18,6 +18,8 @@ from app.models.enums import ApplicationStatus
 from app.models.outreach import TargetCompany, UserCv
 from app.models.user import User
 from app.schemas.outreach import (
+    AutopilotRead,
+    AutopilotRequest,
     BulkSendRead,
     BulkSendRequest,
     SpontaneousSendRead,
@@ -31,11 +33,11 @@ from app.schemas.outreach import (
 from app.services.application_status import stamp_applied_date
 from app.services.apply_pack import build_email_body, build_spontaneous_subject, cv_data_for_user
 from app.services.companies import (
-    RESEND_COOLDOWN_DAYS,
     check_send_allowed,
     days_until_retry,
     normalize_company,
     record_email_send,
+    score_target,
     sends_today,
     user_cv_for_language,
 )
@@ -82,12 +84,13 @@ def _last_sent_at(db: Session, user_id: object, company_name: str) -> datetime |
     return row
 
 
-def _to_read(db: Session, target: TargetCompany) -> TargetRead:
-    retry = days_until_retry(db, target.user_id, target.name)
+def _to_read(db: Session, user: User, target: TargetCompany) -> TargetRead:
+    retry = days_until_retry(db, target.user_id, target.name, settings.SPONTANEOUS_RESEND_DAYS)
     read = TargetRead.model_validate(target)
     read.last_sent_at = _last_sent_at(db, target.user_id, target.name)
     read.retry_in_days = retry
     read.can_send = retry == 0
+    read.match_score = score_target(list(user.skills or []), user.desired_position, list(target.tags or []))
     return read
 
 
@@ -113,7 +116,7 @@ def list_targets(
         .order_by(TargetCompany.name)
         .all()
     )
-    return [_to_read(db, target) for target in targets]
+    return [_to_read(db, current_user, target) for target in targets]
 
 
 @router.post("", response_model=TargetRead, status_code=status.HTTP_201_CREATED)
@@ -128,6 +131,7 @@ def create_target(
         email=payload.email.strip().lower(),
         language=payload.language,
         notes=payload.notes.strip() if payload.notes and payload.notes.strip() else None,
+        tags=[t.strip() for t in (payload.tags or []) if t and t.strip()][:20],
     )
     db.add(target)
     try:
@@ -136,7 +140,7 @@ def create_target(
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ya tienes esa empresa en tu directorio")
     db.refresh(target)
-    return _to_read(db, target)
+    return _to_read(db, current_user, target)
 
 
 @router.patch("/{target_id}", response_model=TargetRead)
@@ -154,6 +158,8 @@ def update_target(
         updates["email"] = updates["email"].strip().lower()
     if "notes" in updates:
         updates["notes"] = updates["notes"].strip() or None if updates["notes"] else None
+    if "tags" in updates and updates["tags"] is not None:
+        updates["tags"] = [t.strip() for t in updates["tags"] if t and t.strip()][:20]
     for field, value in updates.items():
         setattr(target, field, value)
     try:
@@ -162,7 +168,7 @@ def update_target(
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ya tienes ese email en tu directorio")
     db.refresh(target)
-    return _to_read(db, target)
+    return _to_read(db, current_user, target)
 
 
 @router.delete("/{target_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -177,7 +183,7 @@ def delete_target(
 
 def _send_to_target(db: Session, user: User, target: TargetCompany) -> tuple[Application, str, str, str, str]:
     """Envía la espontánea. Devuelve (candidatura, destino, asunto, idioma, cv_source)."""
-    allowed, reason = check_send_allowed(db, user.id, target.name)
+    allowed, reason = check_send_allowed(db, user.id, target.name, settings.SPONTANEOUS_RESEND_DAYS)
     if not allowed:
         if reason == "daily_limit":
             raise HTTPException(
@@ -257,12 +263,61 @@ def send_to_target(
     application, sent_to, subject, language, cv_source = _send_to_target(db, current_user, target)
     return SpontaneousSendRead(
         application=application,
-        target=_to_read(db, target),
+        target=_to_read(db, current_user, target),
         sent_to=sent_to,
         subject=subject,
         language=language,
         cv_source=cv_source,
     )
+
+
+@router.post("/autopilot", response_model=AutopilotRead, status_code=status.HTTP_201_CREATED)
+def run_autopilot(
+    payload: AutopilotRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AutopilotRead:
+    """Piloto automático: envía (máx. 5, manda el tope diario) a las empresas
+    que encajan con tu CV (tags vs skills/puesto), saltando las contactadas
+    hace menos de 30 días. Sin ofertas de por medio. Se puede paralizar con
+    PATCH /profile {auto_outreach_paused: true}."""
+    _forbid_demo(current_user)
+    if current_user.auto_outreach_paused:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Automatización paralizada: reactívala para usar el piloto.",
+        )
+    options = payload or AutopilotRequest()
+    if not smtp_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Envío no configurado en el servidor (SMTP).",
+        )
+    skills = list(current_user.skills or [])
+    ranked = []
+    for target in (
+        db.query(TargetCompany).filter(TargetCompany.user_id == current_user.id).all()
+    ):
+        score = score_target(skills, current_user.desired_position, list(target.tags or []))
+        if score <= 0:
+            continue
+        if days_until_retry(db, current_user.id, target.name, settings.SPONTANEOUS_RESEND_DAYS) > 0:
+            continue
+        ranked.append((score, target.name.lower(), target))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+
+    results: list[TargetSendResult] = []
+    for _, _, target in ranked[: options.limit]:
+        try:
+            _, sent_to, _, _, _ = _send_to_target(db, current_user, target)
+            results.append(TargetSendResult(target_id=target.id, ok=True, sent_to=sent_to))
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+                break
+            results.append(TargetSendResult(target_id=target.id, ok=False, error=str(exc.detail)))
+    skipped = len(ranked[: options.limit]) - len(results)
+    remaining = settings.SEND_EMAIL_DAILY_LIMIT_PER_USER - sends_today(db, current_user.id)
+    return AutopilotRead(sent=results, skipped=skipped, daily_remaining=max(0, remaining))
 
 
 @router.post("/send-bulk", response_model=BulkSendRead, status_code=status.HTTP_201_CREATED)

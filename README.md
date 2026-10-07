@@ -159,7 +159,9 @@ Ninguna API gratuita permite pulsar «aplicar» en el portal ajeno: solo devuelv
 
 **Mis CV por idioma** (`GET/PUT /profile/cvs/{es,ca,en}`): pega tu CV en cada idioma desde el perfil; al enviar se adjunta tal cual si la oferta va en ese idioma, o se genera uno si lo dejas vacío.
 
-**Candidaturas espontáneas** (`/targets`): directorio propio de consultoras y tech (nombre + email + idioma), envío individual o en bloque (`POST /targets/send-bulk`), con carta espontánea en su idioma. Cada envío crea su candidatura «aplicada» y respeta los mismos límites.
+**Candidaturas espontáneas** (`/targets`): directorio propio de consultoras y tech (nombre + email + idioma + etiquetas), envío individual o en bloque (`POST /targets/send-bulk`), con carta espontánea en su idioma. Cada envío crea su candidatura «aplicada» y respeta los mismos límites.
+
+**Piloto automático** (`POST /targets/autopilot`): envía hasta 5 sin ofertas de por medio, solo a empresas cuyas etiquetas encajan con tu CV (tags vs skills/puesto, con puntuación visible), saltando las contactadas hace menos de 30 días. Se paraliza y reanuda con `PATCH /profile {auto_outreach_paused}` (botón en la página).
 
 El clic final en el portal es manual (y debe serlo: el auto-apply con bots viola los TOS).
 

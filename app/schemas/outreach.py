@@ -24,6 +24,8 @@ class TargetCreate(BaseModel):
     email: EmailStr = Field(max_length=255)
     language: str = Field(default="es", pattern="^(es|ca|en)$")
     notes: str | None = Field(default=None, max_length=2000)
+    # Etiquetas para el matching del piloto ("python", "backend"...).
+    tags: list[str] = Field(default_factory=list, max_length=20)
 
 
 class TargetUpdate(BaseModel):
@@ -31,6 +33,7 @@ class TargetUpdate(BaseModel):
     email: EmailStr | None = Field(default=None, max_length=255)
     language: str | None = Field(default=None, pattern="^(es|ca|en)$")
     notes: str | None = Field(default=None, max_length=2000)
+    tags: list[str] | None = Field(default=None, max_length=20)
 
 
 class TargetRead(BaseModel):
@@ -41,11 +44,14 @@ class TargetRead(BaseModel):
     email: str
     language: str
     notes: str | None = None
+    tags: list[str] = Field(default_factory=list)
     created_at: datetime
     last_sent_at: datetime | None = None
     # Días para poder reenviar a esta empresa (0 = se puede hoy)
     retry_in_days: int = 0
     can_send: bool = True
+    # Afinidad con tu CV (tags vs skills/puesto). 0 = el piloto la salta.
+    match_score: int = 0
 
 
 class TargetSendResult(BaseModel):
@@ -71,3 +77,14 @@ class SpontaneousSendRead(BaseModel):
     subject: str
     language: str
     cv_source: str = "generated"
+
+
+class AutopilotRequest(BaseModel):
+    # Cuántas como máximo (el tope diario de 5/día manda igualmente).
+    limit: int = Field(default=5, ge=1, le=5)
+
+
+class AutopilotRead(BaseModel):
+    sent: list[TargetSendResult]
+    skipped: int = 0
+    daily_remaining: int | None = None

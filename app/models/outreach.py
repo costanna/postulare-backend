@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -40,6 +40,9 @@ class TargetCompany(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     language: Mapped[str] = mapped_column(String(2), nullable=False, default="es")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Etiquetas para el matching del piloto ("python", "backend", "remoto"...):
+    # solo se envía a empresas que encajan con tu CV.
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

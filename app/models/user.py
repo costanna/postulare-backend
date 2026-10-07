@@ -43,6 +43,10 @@ class User(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # Pausa global de la automatización de envíos (piloto de espontáneas).
+    # Solo la toca el propio usuario desde la app.
+    auto_outreach_paused: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
     applications: Mapped[list["Application"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     matches: Mapped[list["Match"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     cvs: Mapped[list["UserCv"]] = relationship(back_populates="user", cascade="all, delete-orphan")

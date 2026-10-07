@@ -54,9 +54,11 @@ def _fake_smtp(monkeypatch):
     return sent
 
 
-def _target(client, headers, name="Nórdica Tech SL", email="jobs@nordica.example", language="es"):
+def _target(client, headers, name="Nórdica Tech SL", email="jobs@nordica.example", language="es", tags=None):
     response = client.post(
-        "/targets", headers=headers, json={"name": name, "email": email, "language": language}
+        "/targets",
+        headers=headers,
+        json={"name": name, "email": email, "language": language, "tags": tags or []},
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -106,7 +108,7 @@ def test_spontaneous_send_uses_target_language_and_records(client, auth_headers,
 
     listed = client.get("/targets", headers=auth_headers).json()[0]
     assert listed["can_send"] is False
-    assert listed["retry_in_days"] == 15
+    assert listed["retry_in_days"] == 30
 
 
 def test_cooldown_blocks_same_company_variants(client, auth_headers, _fake_smtp):
@@ -116,7 +118,7 @@ def test_cooldown_blocks_same_company_variants(client, auth_headers, _fake_smtp)
     second = _target(client, auth_headers, name="ACME S.A.", email="b@acme.example")
     blocked = client.post(f"/targets/{second['id']}/send", headers=auth_headers)
     assert blocked.status_code == 409
-    assert "15" in blocked.json()["detail"]
+    assert "30" in blocked.json()["detail"]
 
     # Otra empresa el mismo día sí puede.
     third = _target(client, auth_headers, name="Otra SL", email="c@otra.example")
@@ -164,3 +166,59 @@ def test_pack_prefers_saved_cv(client, auth_headers, monkeypatch):
     pack = client.get(f"/matches/{match_id}/apply-pack", headers=auth_headers).json()
     assert pack["cv_source"] == "saved"
     assert pack["cv_markdown"] == "MI CV EN ESPAÑOL"
+
+
+def _skilled_profile(client, headers):
+    client.patch(
+        "/profile",
+        headers=headers,
+        json={"skills": ["Python", "FastAPI"], "desired_position": "Backend Developer"},
+    )
+
+
+def test_autopilot_sends_best_matches_first(client, auth_headers, _fake_smtp):
+    _skilled_profile(client, auth_headers)
+    _target(client, auth_headers, name="Java Only SL", email="j@x.example", tags=["java"])
+    a = _target(client, auth_headers, name="Python Shop SL", email="p@x.example", tags=["python"])
+    c = _target(client, auth_headers, name="Full Stack SL", email="f@x.example", tags=["python", "fastapi"])
+
+    body = client.post("/targets/autopilot", headers=auth_headers, json={}).json()
+    assert [r["sent_to"] for r in body["sent"] if r["ok"]] == ["f@x.example", "p@x.example"]
+    assert body["skipped"] == 0
+    listed = {t["email"]: t for t in client.get("/targets", headers=auth_headers).json()}
+    assert listed["f@x.example"]["match_score"] == 4
+    assert listed["j@x.example"]["match_score"] == 0
+    assert listed["j@x.example"]["can_send"] is True  # sin encaje: ni se intenta
+    assert a["id"] in [r["target_id"] for r in body["sent"] if r["ok"]]
+
+
+def test_autopilot_respects_limit_and_daily_quota(client, auth_headers, _fake_smtp, monkeypatch):
+    _skilled_profile(client, auth_headers)
+    for i in range(3):
+        _target(client, auth_headers, name=f"Tech {i} SL", email=f"t{i}@x.example", tags=["python"])
+    body = client.post("/targets/autopilot", headers=auth_headers, json={"limit": 1}).json()
+    assert len([r for r in body["sent"] if r["ok"]]) == 1
+
+    monkeypatch.setattr(settings, "SEND_EMAIL_DAILY_LIMIT_PER_USER", 1)
+    body = client.post("/targets/autopilot", headers=auth_headers, json={}).json()
+    assert body["sent"] == []
+    assert body["daily_remaining"] == 0
+
+
+def test_autopilot_paused_and_demo(client, auth_headers):
+    client.patch("/profile", headers=auth_headers, json={"auto_outreach_paused": True})
+    assert client.get("/profile", headers=auth_headers).json()["auto_outreach_paused"] is True
+    paused = client.post("/targets/autopilot", headers=auth_headers, json={})
+    assert paused.status_code == 409
+    client.patch("/profile", headers=auth_headers, json={"auto_outreach_paused": False})
+
+    tokens = client.post("/auth/demo").json()
+    demo = {"Authorization": f"Bearer {tokens['access_token']}"}
+    assert client.post("/targets/autopilot", headers=demo, json={}).status_code == 403
+
+
+def test_autopilot_needs_smtp(client, auth_headers, monkeypatch):
+    _skilled_profile(client, auth_headers)
+    _target(client, auth_headers, tags=["python"])
+    monkeypatch.setattr(settings, "SMTP_HOST", "")
+    assert client.post("/targets/autopilot", headers=auth_headers, json={}).status_code == 503

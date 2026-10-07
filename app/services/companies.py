@@ -1,17 +1,17 @@
-"""Límites de envío: 5/día a empresas distintas y 15 días entre envíos a la misma.
+"""Límites de envío: 5/día a empresas distintas y margen entre reenvíos.
 
-Todo se apoya en la tabla email_sends (ver models/outreach.py), que comparten
-los envíos a ofertas y las candidaturas espontáneas.
+Ofertas: 15 días entre envíos a la misma empresa (OFFER_RESEND_DAYS).
+Espontáneas: 30 días (SPONTANEOUS_RESEND_DAYS). Todo se apoya en la tabla
+email_sends (ver models/outreach.py), compartida por ambos flujos.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+import re
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.outreach import EmailSend, UserCv
 from app.services.duplicates import normalize
-
-RESEND_COOLDOWN_DAYS = 15
 
 # Sufijos legales que no distinguen empresas ("Acme SL" == "Acme S.A.").
 _COMPANY_SUFFIXES = {
@@ -45,7 +45,7 @@ def sends_today(db: Session, user_id: object) -> int:
     )
 
 
-def days_until_retry(db: Session, user_id: object, company_name: str | None) -> int:
+def days_until_retry(db: Session, user_id: object, company_name: str | None, cooldown_days: int) -> int:
     """Días que faltan para poder reenviar a esta empresa (0 = se puede)."""
     key = normalize_company(company_name)
     if not key:
@@ -62,15 +62,16 @@ def days_until_retry(db: Session, user_id: object, company_name: str | None) -> 
     if last.tzinfo is None:
         last = last.replace(tzinfo=timezone.utc)
     elapsed = datetime.now(timezone.utc) - last
-    remaining = RESEND_COOLDOWN_DAYS - elapsed.days
-    return max(0, remaining)
+    return max(0, cooldown_days - elapsed.days)
 
 
-def check_send_allowed(db: Session, user_id: object, company_name: str | None) -> tuple[bool, str]:
+def check_send_allowed(
+    db: Session, user_id: object, company_name: str | None, cooldown_days: int
+) -> tuple[bool, str]:
     """(permitido, motivo). El motivo sirve para el mensaje de error (409/429)."""
     if sends_today(db, user_id) >= settings.SEND_EMAIL_DAILY_LIMIT_PER_USER:
         return False, "daily_limit"
-    waiting = days_until_retry(db, user_id, company_name)
+    waiting = days_until_retry(db, user_id, company_name, cooldown_days)
     if waiting > 0:
         return False, f"cooldown:{waiting}"
     return True, ""
@@ -109,3 +110,20 @@ def user_cv_for_language(db: Session, user_id: object, language: str) -> str | N
         .scalar()
     )
     return content.strip() if content and content.strip() else None
+
+
+def score_target(skills: list[str], desired_position: str | None, tags: list[str]) -> int:
+    """Afinidad empresa-CV para el piloto: tags que casan con tus skills (x2)
+    y con tu puesto deseado (x1). 0 = no encaja, el piloto la salta."""
+    skill_set = {s.strip().lower() for s in skills if s and s.strip()}
+    position_words = set(re.findall(r"[\w+#.]+", (desired_position or "").lower()))
+    score = 0
+    for tag in tags:
+        clean = (tag or "").strip().lower()
+        if not clean:
+            continue
+        if clean in skill_set:
+            score += 2
+        elif clean in position_words:
+            score += 1
+    return score
