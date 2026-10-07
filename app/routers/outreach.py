@@ -22,7 +22,14 @@ from app.schemas.outreach import (
     AutopilotRequest,
     BulkSendRead,
     BulkSendRequest,
+    ImportRead,
+    ImportRequest,
     SpontaneousSendRead,
+    SuggestionRead,
+    SuggestionsRead,
+    SpontaneousSendRead,
+    SuggestionRead,
+    SuggestionsRead,
     TargetCreate,
     TargetRead,
     TargetSendResult,
@@ -31,7 +38,13 @@ from app.schemas.outreach import (
     UserCvUpsert,
 )
 from app.services.application_status import stamp_applied_date
-from app.services.apply_pack import build_email_body, build_spontaneous_subject, cv_data_for_user
+from app.services.apply_pack import (
+    build_email_body,
+    build_spontaneous_subject,
+    cv_data_for_user,
+    extract_contact_email,
+)
+from app.services.ats import matched_keywords
 from app.services.companies import (
     check_send_allowed,
     days_until_retry,
@@ -44,6 +57,9 @@ from app.services.companies import (
 from app.services.cover_letter import Candidate, build_spontaneous_letter
 from app.services.cv_document import render_cv_text
 from app.services.cv_mailer import MailerError, send_application_email, smtp_configured
+from app.services.hn_hiring import fetch_hn_suggestions
+from app.services.job_search import JobSearchError
+from app.services.lang_detect import detect_language
 
 router = APIRouter(prefix="/targets", tags=["targets"])
 
@@ -271,6 +287,119 @@ def send_to_target(
     )
 
 
+def _offer_suggestions(db: Session, user: User) -> list[SuggestionRead]:
+    """Empresas de tus matches con email en la descripción + skills que casan."""
+    from app.models.job_offer import JobOffer
+    from app.models.match import Match
+
+    rows = (
+        db.query(JobOffer.company_name, JobOffer.title, JobOffer.description)
+        .join(Match, Match.job_offer_id == JobOffer.id)
+        .filter(Match.user_id == user.id)
+        .all()
+    )
+    grouped: dict[str, dict] = {}
+    for company, title, description in rows:
+        key = normalize_company(company)
+        if not key:
+            continue
+        entry = grouped.setdefault(key, {"name": (company or "").strip(), "titles": [], "descriptions": []})
+        entry["titles"].append(title or "")
+        entry["descriptions"].append(description or "")
+    skills = list(user.skills or [])
+    suggestions: list[SuggestionRead] = []
+    for entry in grouped.values():
+        email = extract_contact_email(*entry["descriptions"], *entry["titles"])
+        if not email:
+            continue
+        tags = matched_keywords(" ".join(entry["titles"]), " ".join(entry["descriptions"]), skills)[:8]
+        if not tags:
+            continue
+        suggestions.append(
+            SuggestionRead(
+                name=entry["name"],
+                email=email,
+                language=detect_language(*entry["titles"], *entry["descriptions"]),
+                tags=tags,
+                match_score=len(tags),
+                offers_count=len(entry["titles"]),
+                source="offers",
+            )
+        )
+    suggestions.sort(key=lambda s: (-s.match_score, -s.offers_count))
+    return suggestions[:20]
+
+
+def _import_suggestions(db: Session, user: User, items: list[SuggestionRead]) -> tuple[int, int]:
+    existing = {
+        row[0].lower() for row in db.query(TargetCompany.email).filter(TargetCompany.user_id == user.id).all()
+    }
+    imported = skipped = 0
+    for item in items[:20]:
+        email = (item.email or "").strip().lower()
+        if not email or email in existing:
+            skipped += 1
+            continue
+        language = item.language if item.language in CV_LANGUAGES else "es"
+        db.add(
+            TargetCompany(
+                user_id=user.id,
+                name=item.name.strip()[:255],
+                email=email,
+                language=language,
+                tags=[t.strip() for t in (item.tags or []) if t and t.strip()][:20],
+            )
+        )
+        existing.add(email)
+        imported += 1
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+    return imported, skipped
+
+
+def _hn_suggestions(user: User) -> list[SuggestionRead]:
+    try:
+        items = fetch_hn_suggestions(list(user.skills or []))
+    except JobSearchError:
+        return []
+    return [
+        SuggestionRead(
+            name=item["name"],
+            email=item["email"],
+            language=item["language"],
+            tags=item.get("tags", []),
+            match_score=item["match_score"],
+            offers_count=0,
+            source="hn_hiring",
+        )
+        for item in items
+    ]
+
+
+@router.get("/suggestions", response_model=SuggestionsRead)
+def get_suggestions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SuggestionsRead:
+    """Empresas descubiertas solas: de tus ofertas y del hilo HN mensual."""
+    return SuggestionsRead(
+        from_offers=_offer_suggestions(db, current_user),
+        from_hn=_hn_suggestions(current_user),
+    )
+
+
+@router.post("/import", response_model=ImportRead)
+def import_suggestions(
+    payload: ImportRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ImportRead:
+    imported, skipped = _import_suggestions(db, current_user, payload.items)
+    return ImportRead(imported=imported, skipped=skipped)
+
+
 @router.post("/autopilot", response_model=AutopilotRead, status_code=status.HTTP_201_CREATED)
 def run_autopilot(
     payload: AutopilotRequest | None = None,
@@ -293,6 +422,8 @@ def run_autopilot(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Envío no configurado en el servidor (SMTP).",
         )
+    if options.include_suggestions:
+        _import_suggestions(db, current_user, _offer_suggestions(db, current_user) + _hn_suggestions(current_user))
     skills = list(current_user.skills or [])
     ranked = []
     for target in (

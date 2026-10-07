@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     EURES_ENABLED: bool = True
     EURES_MAX_RESULTS: int = 20
 
+    # Hilo mensual "Ask HN: Who is hiring?": empresas con email público,
+    # filtradas por España/remoto. Gratis, sin clave.
+    HN_HIRING_ENABLED: bool = True
+
     # Envío directo de candidaturas por email (SMTP propio, p. ej. Gmail con
     # contraseña de aplicación). 5/día a empresas distintas; margen entre
     # reenvíos a la misma empresa: 15 días en ofertas, 30 en espontáneas.

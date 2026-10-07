@@ -82,9 +82,35 @@ class SpontaneousSendRead(BaseModel):
 class AutopilotRequest(BaseModel):
     # Cuántas como máximo (el tope diario de 5/día manda igualmente).
     limit: int = Field(default=5, ge=1, le=5)
+    # Descubrir e importar empresas solas (ofertas + HN) antes de enviar.
+    include_suggestions: bool = True
 
 
 class AutopilotRead(BaseModel):
     sent: list[TargetSendResult]
     skipped: int = 0
     daily_remaining: int | None = None
+
+
+class SuggestionRead(BaseModel):
+    name: str
+    email: str
+    language: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    match_score: int = 0
+    offers_count: int = 0
+    source: str = "offers"
+
+
+class SuggestionsRead(BaseModel):
+    from_offers: list[SuggestionRead] = Field(default_factory=list)
+    from_hn: list[SuggestionRead] = Field(default_factory=list)
+
+
+class ImportRequest(BaseModel):
+    items: list[SuggestionRead] = Field(max_length=20)
+
+
+class ImportRead(BaseModel):
+    imported: int = 0
+    skipped: int = 0

@@ -163,6 +163,8 @@ Ninguna API gratuita permite pulsar «aplicar» en el portal ajeno: solo devuelv
 
 **Piloto automático** (`POST /targets/autopilot`): envía hasta 5 sin ofertas de por medio, solo a empresas cuyas etiquetas encajan con tu CV (tags vs skills/puesto, con puntuación visible), saltando las contactadas hace menos de 30 días. Se paraliza y reanuda con `PATCH /profile {auto_outreach_paused}` (botón en la página).
 
+**Descubrimiento sin añadir a mano** (`GET /targets/suggestions`, `POST /targets/import`): empresas con email real agregadas de tus ofertas + hilo mensual «Ask HN: Who is hiring?» (filtrado España/remoto y por tus skills). El piloto las importa solo (`include_suggestions`, por defecto sí); en la página salen en «Descubiertas solas» para añadirlas a mano si prefieres.
+
 El clic final en el portal es manual (y debe serlo: el auto-apply con bots viola los TOS).
 
 ## Protección de cuotas y gasto

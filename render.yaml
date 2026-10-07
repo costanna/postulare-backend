@@ -63,6 +63,8 @@ services:
         value: "true"
       - key: EURES_MAX_RESULTS
         value: "20"
+      - key: HN_HIRING_ENABLED
+        value: "true"
       - key: MATCH_SEARCH_COOLDOWN_MINUTES
         value: "10"
       # Protección de la cuota de Adzuna ante una demo pública (ver README):
