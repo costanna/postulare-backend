@@ -16,6 +16,7 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.services.job_search import clear_search_cache
+from app.services.keep_awake import reset_keep_awake_state
 
 
 @pytest.fixture(autouse=True)
@@ -30,9 +31,13 @@ def _isolate_global_state(monkeypatch):
     # Los tests que las quieran las activan y simulan con monkeypatch.
     monkeypatch.setattr(settings, "FREE_BOARDS_ENABLED", False)
     monkeypatch.setattr(settings, "EURES_ENABLED", False)
+    # El keep-awake nunca arranca hilos en tests (haría HTTP real).
+    monkeypatch.setattr(settings, "KEEP_AWAKE_ENABLED", False)
+    reset_keep_awake_state()
     yield
     clear_search_cache()
     reset_rate_limits()
+    reset_keep_awake_state()
 
 
 @pytest.fixture()

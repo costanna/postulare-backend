@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     # pueden registrarse. Vacío = registro abierto.
     ALLOWED_REGISTRATION_EMAILS: str = ""
 
+    # Keep-awake estilo woke-dyno para el plan gratuito de Render (duerme tras
+    # ~15 min sin tráfico entrante). Un hilo pide la URL pública cada N min.
+    # Apagado por defecto: actívalo en producción con la URL pública real.
+    # Despierto 24/7 gasta ~720 h/mes de las 750 h gratuitas (vale para un
+    # solo servicio).
+    KEEP_AWAKE_ENABLED: bool = False
+    KEEP_AWAKE_URL: str = ""
+    KEEP_AWAKE_MINUTES: int = 10
+
     FOLLOW_UP_DAYS: int = 7
 
     CV_MAX_BYTES: int = 2_000_000

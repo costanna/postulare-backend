@@ -1,11 +1,22 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.routers import applications, auth, events, matches, profile, stats
 from app.routers.outreach import cv_router, router as outreach_router
+from app.services.keep_awake import maybe_start_keep_awake
 
-app = FastAPI(title=settings.PROJECT_NAME)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Keep-awake estilo woke-dyno (solo si KEEP_AWAKE_ENABLED + KEEP_AWAKE_URL).
+    maybe_start_keep_awake()
+    yield
+
+
+app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

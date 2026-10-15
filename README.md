@@ -131,6 +131,13 @@ Las variables de un servicio ya creado **no se sincronizan solas** desde `render
 | `LLM_DAILY_LIMIT` / `COVER_LETTER_DAILY_LIMIT_PER_USER` | `20` / `5` | Topes de gasto diarios (global y por usuario) |
 | `DEMO_ENABLED`, `DEMO_TTL_HOURS` | `true`, `24` | Cuentas demo temporales |
 | `SMTP_*` | Tu proveedor de correo | **Opcional**, pero sin ello no llega ningún email de recuperar contraseña |
+| `KEEP_AWAKE_URL` | `https://postulare-backend-xxxx.onrender.com/health` | **Opcional**: con `KEEP_AWAKE_ENABLED=true`, evita que el plan gratuito se duerma (ver abajo) |
+
+### Keep-awake estilo woke-dyno (plan gratuito)
+
+Render duerme el servicio tras ~15 min sin tráfico (cold start de ~30 s al despertar). Con `KEEP_AWAKE_ENABLED=true` y `KEEP_AWAKE_URL` apuntando a la URL pública + `/health`, un hilo interno la pide cada `KEEP_AWAKE_MINUTES` (10) minutos y el servicio no se duerme nunca: es el mismo truco que el paquete `woke-dyno` de Node, adaptado al backend Python, sin servicios ni dependencias extra.
+
+Ojo al consumo: despierto 24/7 gasta ~720 h/mes de las 750 h gratuitas. Vale para este único servicio; si añades más servicios en Render, apágalo (`false`) o replantea el plan.
 
 ## Ofertas de empleo: qué APIs se pueden usar
 

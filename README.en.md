@@ -138,6 +138,13 @@ Variables of an already-created service are **not synced automatically** from `r
 | `LLM_DAILY_LIMIT` / `COVER_LETTER_DAILY_LIMIT_PER_USER` | `20` / `5` | Daily spending caps (global and per user) |
 | `DEMO_ENABLED`, `DEMO_TTL_HOURS` | `true`, `24` | Temporary demo accounts |
 | `SMTP_*` | Your mail provider | **Optional**, but without it no password-reset email is ever delivered |
+| `KEEP_AWAKE_URL` | `https://postulare-backend-xxxx.onrender.com/health` | **Optional**: with `KEEP_AWAKE_ENABLED=true`, stops the free plan from sleeping (see below) |
+
+### Woke-dyno-style keep-awake (free plan)
+
+Render sleeps the service after ~15 min without traffic (~30 s cold start on wake-up). With `KEEP_AWAKE_ENABLED=true` and `KEEP_AWAKE_URL` pointing at the public URL + `/health`, an internal thread pings it every `KEEP_AWAKE_MINUTES` (10) minutes and the service never sleeps: same trick as Node's `woke-dyno` package, adapted to this Python backend, with no extra services or dependencies.
+
+Watch the consumption: awake 24/7 uses ~720 h/month of the 750 free hours. Fine for this single service; if you add more Render services, switch it off (`false`) or reconsider the plan.
 
 ## Job offers: which APIs can be used
 
