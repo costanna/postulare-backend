@@ -4,10 +4,8 @@ import threading
 import pytest
 
 import app.services.keep_awake as keep_awake
-from app.core.config import settings
 from app.services.keep_awake import (
     keep_awake_configured,
-    maybe_start_keep_awake,
     ping_once,
     reset_keep_awake_state,
     start_keep_awake,
@@ -15,9 +13,7 @@ from app.services.keep_awake import (
 
 
 @pytest.fixture(autouse=True)
-def _no_threads(monkeypatch):
-    monkeypatch.setattr(settings, "KEEP_AWAKE_ENABLED", False)
-    monkeypatch.setattr(settings, "KEEP_AWAKE_URL", "")
+def _no_threads():
     reset_keep_awake_state()
     yield
     reset_keep_awake_state()
@@ -35,17 +31,15 @@ class _FakeResponse:
 
 
 def test_disabled_by_default():
-    assert keep_awake_configured() is False
-    assert maybe_start_keep_awake() is None
+    assert keep_awake_configured(False, "") is False
+    assert keep_awake_configured(True, "") is False
+    assert keep_awake_configured(False, "https://api.example.com/health") is False
 
 
-def test_needs_flag_and_absolute_url(monkeypatch):
-    monkeypatch.setattr(settings, "KEEP_AWAKE_URL", "https://api.example.com/health")
-    assert keep_awake_configured() is False  # falta el flag
-    monkeypatch.setattr(settings, "KEEP_AWAKE_ENABLED", True)
-    assert keep_awake_configured() is True
-    monkeypatch.setattr(settings, "KEEP_AWAKE_URL", "localhost:8000/health")
-    assert keep_awake_configured() is False  # no es absoluta
+def test_needs_absolute_url():
+    assert keep_awake_configured(True, "https://api.example.com/health") is True
+    assert keep_awake_configured(True, "localhost:8000/health") is False
+    assert keep_awake_configured(True, None) is False
 
 
 def test_ping_once_ok(monkeypatch):
@@ -97,17 +91,17 @@ def test_start_rejects_bad_url():
     assert start_keep_awake("https://api.example.com/health", minutes=0) is None
 
 
-def test_maybe_starts_when_configured(monkeypatch):
-    monkeypatch.setattr(settings, "KEEP_AWAKE_ENABLED", True)
-    monkeypatch.setattr(settings, "KEEP_AWAKE_URL", "https://api.example.com/health")
-    monkeypatch.setattr(settings, "KEEP_AWAKE_MINUTES", 10)
+def test_lifespan_starts_only_when_configured(monkeypatch):
+    import app.main as main_module
 
-    started = {}
+    calls = []
+    monkeypatch.setattr(main_module, "start_keep_awake", lambda *a, **k: calls.append((a, k)) or "thread")
+    monkeypatch.setattr(main_module.settings, "KEEP_AWAKE_ENABLED", True)
+    monkeypatch.setattr(main_module.settings, "KEEP_AWAKE_URL", "https://api.example.com/health")
+    monkeypatch.setattr(main_module.settings, "KEEP_AWAKE_MINUTES", 10)
 
-    def fake_start(url=None, minutes=None, ping=None, sleep=None):
-        started["args"] = (url, minutes)
-        return "thread"
+    from fastapi.testclient import TestClient
 
-    monkeypatch.setattr(keep_awake, "start_keep_awake", fake_start)
-    assert maybe_start_keep_awake() == "thread"
-    assert started["args"] == (None, None)  # usa los settings por defecto
+    with TestClient(main_module.app):
+        pass
+    assert calls == [(("https://api.example.com/health", 10), {})]

@@ -11,13 +11,14 @@ extra y sin dependencias nuevas (stdlib).
 
 Ojo al consumo: despierto 24/7 gasta ~720 h/mes de las 750 h gratuitas.
 Vale para un solo servicio; con más servicios en Render, replantearlo.
+
+El módulo no depende de los settings de ningún proyecto: recibe los valores
+por argumento, así se puede copiar tal cual a otro backend FastAPI.
 """
 import logging
 import threading
 import time
 import urllib.request
-
-from app.core.config import settings
 
 logger = logging.getLogger("postulare.keep_awake")
 
@@ -27,9 +28,8 @@ _started = False
 _lock = threading.Lock()
 
 
-def keep_awake_configured() -> bool:
-    url = (settings.KEEP_AWAKE_URL or "").strip()
-    return bool(settings.KEEP_AWAKE_ENABLED) and url.startswith(("http://", "https://"))
+def keep_awake_configured(enabled: bool, url: str | None) -> bool:
+    return bool(enabled) and (url or "").strip().startswith(("http://", "https://"))
 
 
 def ping_once(url: str, timeout: int = _TIMEOUT_SECONDS) -> bool:
@@ -58,17 +58,16 @@ def _run(
 
 
 def start_keep_awake(
-    url: str | None = None,
-    minutes: int | None = None,
+    url: str,
+    minutes: int,
     ping=ping_once,
     sleep=time.sleep,
     stop: threading.Event | None = None,
 ) -> threading.Thread | None:
     """Arranca el hilo (daemon, uno solo por proceso). Devuelve el hilo o None si ya estaba."""
     global _started
-    target_url = (url if url is not None else settings.KEEP_AWAKE_URL or "").strip()
-    interval_minutes = minutes if minutes is not None else settings.KEEP_AWAKE_MINUTES
-    if not target_url.startswith(("http://", "https://")) or interval_minutes <= 0:
+    target_url = (url or "").strip()
+    if not target_url.startswith(("http://", "https://")) or minutes <= 0:
         logger.warning("Keep-awake no arranca: URL o intervalo inválidos")
         return None
     with _lock:
@@ -77,13 +76,13 @@ def start_keep_awake(
         _started = True
     thread = threading.Thread(
         target=_run,
-        args=(target_url, interval_minutes * 60),
+        args=(target_url, minutes * 60),
         kwargs={"ping": ping, "sleep": sleep, "stop": stop},
         name="postulare-keep-awake",
         daemon=True,
     )
     thread.start()
-    logger.info("Keep-awake arrancado: %s cada %s min", target_url, interval_minutes)
+    logger.info("Keep-awake arrancado: %s cada %s min", target_url, minutes)
     return thread
 
 
@@ -92,10 +91,3 @@ def reset_keep_awake_state() -> None:
     global _started
     with _lock:
         _started = False
-
-
-def maybe_start_keep_awake() -> threading.Thread | None:
-    """Lo que llama el startup de FastAPI: arranca solo si está configurado."""
-    if not keep_awake_configured():
-        return None
-    return start_keep_awake()

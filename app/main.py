@@ -6,13 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.routers import applications, auth, events, matches, profile, stats
 from app.routers.outreach import cv_router, router as outreach_router
-from app.services.keep_awake import maybe_start_keep_awake
+from app.services.keep_awake import keep_awake_configured, start_keep_awake
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Keep-awake estilo woke-dyno (solo si KEEP_AWAKE_ENABLED + KEEP_AWAKE_URL).
-    maybe_start_keep_awake()
+    if keep_awake_configured(settings.KEEP_AWAKE_ENABLED, settings.KEEP_AWAKE_URL):
+        start_keep_awake(settings.KEEP_AWAKE_URL, settings.KEEP_AWAKE_MINUTES)
     yield
 
 
